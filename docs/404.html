@@ -179,12 +179,7 @@
 </ul></li>
 <li class="chapter" data-level="" data-path="fichas-técnicas.html"><a href="fichas-técnicas.html"><i class="fa fa-check"></i>Fichas Técnicas</a></li>
 <li class="divider"></li>
-<li><b><a href="http://www.yvera.gob.ar/estadistica" target="blank">Estadísticas de Turismo</a></b></li>
-<li><a href="http://datos.yvera.gob.ar/" target="blank">Datos Abiertos de Turismo</a></li>
-<li><a href="https://tableros.yvera.tur.ar/" target="blank">Tableros y Reportes</a></li>
-<li><a href="https://www.yvera.tur.ar/estadistica/informe" target="blank">Informes</a></li>
-<li><a href="https://armonizacion.yvera.tur.ar/" target="blank">Armonización</a></li>
-<li><a href="https://bitacora.yvera.tur.ar/" target="blank">Bitácora</a></li>
+<li class="toc-logo"><a href="http://www.yvera.gob.ar/sinta"><img src="imagenes/sinta_negro.png"></a></li>
 
 </ul>
 
@@ -273,6 +268,20 @@ gitbook.start({
 });
 </script>
 
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    var src = "true";
+    if (src === "" || src === "true") src = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.9/latest.js?config=TeX-MML-AM_CHTML";
+    if (location.protocol !== "file:")
+      if (/^https?:/.test(src))
+        src = src.replace(/^https?:/, '');
+    script.src = src;
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
 </body>
 
 </html>
