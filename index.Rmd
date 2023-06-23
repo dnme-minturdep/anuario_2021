@@ -9,7 +9,7 @@ classoption: openany
 bibliography: [book.bib, packages.bib]
 biblio-style: apalike
 link-citations: yes
-description: "CONCURSO PÚBLICO NACIONAL ETAPA ÚNICA PRORROGA No 28-0004-CPU19 ORDEN DE COMPRA NUMERO 28-1037-OC21 EX-2019-101343614-APN-DCPYS#SGP"
+description: ""
 ---
 
 
