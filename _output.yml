@@ -16,12 +16,12 @@ bookdown::gitbook:
         <li><a href="https://armonizacion.yvera.tur.ar/" target="blank">Armonización</a></li>
         <li><a href="https://bitacora.yvera.tur.ar/" target="blank">Bitácora</a></li>
     download: ["pdf", "epub"]
-bookdown::pdf_book:
-  includes:
-    in_header: preamble.tex
-    before_body: before_body.tex
-  latex_engine: xelatex
-  citation_package: natbib
-  keep_tex: yes
+# bookdown::pdf_book:
+#   includes:
+#     in_header: preamble.tex
+#     before_body: before_body.tex
+#   latex_engine: xelatex
+#   citation_package: natbib
+#   keep_tex: yes
 bookdown::epub_book: 
   cover_image: portada1.png
