@@ -1,3 +1,5 @@
+![imagen](https://github.com/dnme-minturdep/anuario_2021/assets/44036018/7b1e9b76-e783-49b2-a620-e952ce107db2)
+
 # Anuario 2021
 Código fuente del Anuario Estadístico de Turismo 2021
 
