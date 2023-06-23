@@ -1,0 +1,917 @@
+---
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.topcaption=TRUE)
+
+knitr::knit_hooks$set(inline = function(x) {   
+  if(!is.numeric(x)){x}
+  else{prettyNum(x, big.mark=".",decimal.mark = ",")}}) # Para que los separadores de miles sean punto.
+library(tidyverse)
+library (gt)
+library(comunicacion)
+library(ggtext) 
+library(glue)
+library(herramientas)
+
+anio_actual <- 2021
+```
+# **El Turismo en el Mundo** {#turismo-mundo}
+## Introducción
+Este capítulo presenta las principales estadísticas del turismo a nivel mundial. Con información de la [Organización Mundial del Turismo (OMT)](https://www.unwto.org/es), se incluyen los últimos datos disponibles acerca de las llegadas de turistas internacionales y los ingresos que estos generan en los países de destino, así como los principales países emisores de turistas y aquellos que más gasto generan por sus viajes. Se presentan estadísticas por región mundial y se profundiza en la región América y en América del Sur, en particular.
+
+Es importante destacar que la información relativa al turismo internacional se presenta de distintas formas en los países. A modo de ejemplo, algunos 
+países informan la cantidad de visitantes que visitan el país, es decir, se incluyen aquellas personas que pasan una noche en él (turistas) y aquellas que no lo hacen (excursionistas). Otros, en cambio, solo miden la cantidad de turistas (visitantes con pernocte). Un tercer grupo publica solamente estadísticas sobre aquellos turistas que visitan establecimientos turísticos colectivos.
+En el presente capítulo se procura mostrar la información correspondiente al total de turistas, es decir, visitantes que pernoctan.
+
+Asimismo, es común encontrar, en las estadísticas por país, datos faltantes de algún país en particular, especialmente para el último año. Por otra parte, las mediciones más recientes pueden tener modificaciones en períodos posteriores.
+
+## Llegadas de turistas internacionales
+
+```{r}
+llegadas_regiones <- read_file_srv("/economia2/anuario/llegadas turistas internacionales.xlsx",skip=1,sheet=2) %>% 
+  rename(region = 1) %>% 
+  mutate(region = ifelse(region == "Américas","América",region))
+ingresos_regiones <- read_file_srv("/economia2/anuario/ingresos turistas internacionales.xlsx",skip=1,sheet=2) %>% 
+  rename(region = 1) %>% 
+  mutate(region = ifelse(region == "Américas","América",region))
+
+llegadas_subregiones <- read_file_srv("/economia2/anuario/llegadas turistas internacionales.xlsx",skip=1,sheet=3) %>% 
+  rename(subregion=1) %>% 
+  mutate(region = ifelse(region == "Américas","América",region))
+
+ingresos_subregiones <-  read_file_srv("/economia2/anuario/ingresos turistas internacionales.xlsx",skip=1,sheet=3) %>% 
+  rename(subregion=1) %>% 
+  mutate(region = ifelse(region == "Américas","América",region))
+
+
+
+
+llegadas_paises <- read_file_srv("/economia2/anuario/tabla_inbound_arrivals_omt.rds") 
+
+ingresos_paises <- read_file_srv("/economia2/anuario/tabla_inbound_expenditure_omt.rds") 
+
+egresos_paises <- read_file_srv("/economia2/anuario/tabla_outbound_expenditure_omt.rds") 
+
+llegadas_america <- read_file_srv("/economia2/anuario/llegadas turistas internacionales_america.xlsx",sheet = 3,skip=1) %>% 
+  rename(region = 1) %>% 
+  mutate(region = ifelse(region == "Américas","América",region)) %>% 
+  filter(regiones != "Américas")
+
+ingresos_america <- read_file_srv("/economia2/anuario/ingresos turistas internacionales_america.xlsx",sheet = 3,skip=1) %>% 
+  rename(pais = 1) %>% 
+  filter(subregion != "Américas")
+
+
+```
+```{r}
+llegadas_regiones_long <- llegadas_regiones %>% 
+  mutate_at(vars(-region),as.numeric) %>% 
+  pivot_longer(cols=-1,names_to="anio",values_to = "llegadas") %>% 
+  group_by(region) %>% 
+  mutate(var_i_a = 100*(llegadas/lag(llegadas,1)-1),
+         anio=as.numeric(anio)) %>% 
+  ungroup()
+  
+ingresos_regiones_long <- ingresos_regiones %>% 
+  mutate_at(vars(-region),as.numeric) %>% 
+  pivot_longer(cols=-1,names_to="anio",values_to = "ingresos") %>% 
+  group_by(region) %>% 
+  mutate(var_i_a = 100*(ingresos/lag(ingresos,1)-1),
+         anio = as.numeric(anio)) %>% 
+  ungroup()
+
+llegadas_america_long <- llegadas_america %>% 
+  mutate_at(vars(-region,-regiones),as.numeric) %>% 
+  pivot_longer(cols=-c("region","regiones"),names_to="anio",values_to = "llegadas") %>% 
+  group_by(region,regiones) %>% 
+  mutate(var_i_a = 100*(llegadas/lag(llegadas,1)-1),
+         anio=as.numeric(anio)) %>% 
+  ungroup()
+
+ingresos_america_long <- ingresos_america %>% 
+  mutate_at(vars(-pais,-subregion),as.numeric) %>% 
+  pivot_longer(cols = -c("pais","subregion"), names_to = "anio",values_to = "ingresos") %>% 
+  group_by(pais,subregion) %>% 
+  mutate(var_i_a = 100*(ingresos/lag(ingresos,1)-1),
+         anio=as.numeric(anio)) %>% 
+  ungroup()
+```
+
+
+
+```{r }
+data_llegadas_mundo <- llegadas_regiones_long %>% 
+  pivot_longer(cols = c("llegadas","var_i_a"),names_to="indicador",values_to = "valor") %>% 
+  mutate(etiqueta = factor(indicador, levels = c("llegadas", "var_i_a"),
+                      labels = c("Llegadas \n(en millones)", "Variación interanual (%)")),
+         signo = ifelse(valor>=0,"positiva","negativa")) %>% 
+  filter(region == "Mundo" & anio >= 2005)
+```
+
+En el año `r as.character(anio_actual)` se estimaron `r data_llegadas_mundo[data_llegadas_mundo$anio == anio_actual & data_llegadas_mundo$indicador == "llegadas","valor"]` millones de turistas internacionales a nivel mundial. Representa un `r ifelse(data_llegadas_mundo[data_llegadas_mundo$anio == anio_actual & data_llegadas_mundo$indicador == "var_i_a","valor"] > 0,"incremento","descenso")` del `r  as.numeric(round(abs(data_llegadas_mundo[data_llegadas_mundo$anio == anio_actual & data_llegadas_mundo$indicador == "var_i_a","valor"]),1))`% respecto de `r as.character(anio_actual - 1)`. En comparación con 2019, el valor estuvo un `r as.numeric(abs(round(100*(data_llegadas_mundo[data_llegadas_mundo$anio == anio_actual & data_llegadas_mundo$indicador == "llegadas","valor"]/data_llegadas_mundo[data_llegadas_mundo$anio == 2019 & data_llegadas_mundo$indicador == "llegadas","valor"]-1),1)))`% por debajo.
+
+```{r omt-mundo, fig.cap=glue("Llegadas de turistas internacionales (en millones) y variación interanual. Años {min(data_llegadas_mundo$anio)}-{max(data_llegadas_mundo$anio)}.")}
+data_llegadas_mundo %>% 
+  ggplot(aes(x=anio,y=valor,group=1))+
+  geom_col(data=filter(data_llegadas_mundo,indicador == "var_i_a"),aes(fill=signo))+
+  geom_line(data=filter(data_llegadas_mundo,indicador == "llegadas"),color=dnmye_colores(3))+
+  geom_point(data=filter(data_llegadas_mundo,indicador == "llegadas"),color=dnmye_colores(3))+
+  geom_text(aes(label = ifelse(indicador=="llegadas",format(round(valor,0),big.mark=".",decimal.mark=","),format(round(valor,1),big.mark=".",decimal.mark=","))),
+             size=3,#label.padding =  unit(1, "lines"),
+             vjust = -0.2
+             ) +
+  scale_fill_manual(values = c("negativa" = dnmye_colores(1), 
+                               "positiva" = dnmye_colores(5))) +
+  scale_y_continuous(labels = scales::number_format(big.mark = "."),
+                     limits = c(NA,NA),
+                     expand=c(0,50))+
+   scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  facet_wrap(~etiqueta,ncol=1,scales="free")+
+  labs(fill = "", x = "", y = "", caption = "Fuente: DNMyE en base a Organización Mundial del Turismo (OMT)") +
+  theme_minimal() +
+  coord_cartesian(clip = "off")+
+  theme(legend.position="none")
+```
+La apertura a nivel regional de las llegadas de turistas internacionales muestra que la región de **`r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-llegadas)%>% slice(1) %>% select(region)`** fue la más visitada, con `r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-llegadas)%>% slice(1) %>% pull(llegadas)` millones de turistas en el año `r as.character(anio_actual)`; en segundo lugar se encontró **`r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-llegadas)%>% slice(2) %>% pull(region)`**, con `r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-llegadas)%>% slice(2) %>% pull(llegadas)` millones de turistas en el año; el tercer lugar lo ocupó **`r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-llegadas)%>% slice(3) %>% pull(region)`**, con `r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-llegadas)%>% slice(3) %>% pull(llegadas)` millones de turistas; la cuarta posición fue para 
+**`r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-llegadas)%>% slice(4) %>% pull(region)`**, con `r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-llegadas)%>% slice(4) %>% pull(llegadas)` millones; por último, la región de **`r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-llegadas)%>% slice(5) %>% pull(region)`** recibió `r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-llegadas)%>% slice(5) %>% pull(llegadas)` millones.
+
+```{r fig.cap=glue("Llegadas de turistas internacionales por región. En millones. Años 2005-{max(llegadas_regiones_long$anio)}.")}
+llegadas_regiones_long %>% 
+  filter(region != "Mundo") %>% 
+  filter(anio >= 2005) %>% 
+  ggplot(aes(x=anio,y=llegadas,group=region))+
+  geom_col(aes(fill=region))+
+  geom_label(data=llegadas_regiones_long %>% filter(anio %in% seq(anio_actual-15,anio_actual,by=5) & region != "Mundo"),aes(label = format(round(llegadas,0),big.mark=".",decimal.mark=",")),
+             size=3,
+             label.padding =  unit(0.15, "lines"),
+             position = position_stack(vjust = 0.5),
+             ) +
+   scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  scale_fill_dnmye() +
+  labs(fill = "", x = "", y = "", caption = "Fuente: DNMyE en base a OMT") +
+  theme_minimal() +
+  coord_cartesian(clip = "off")+
+  theme(legend.position="bottom")
+```
+
+
+
+Las llegadas de turistas internacionales se incrementaron un `r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(1) %>% pull(var_i_a) %>% round(1)`% interanual en **`r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(1) %>% select(region)`**. En  **`r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(2) %>% select(region)`**, en tanto, `r ifelse(llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(2) %>% pull(var_i_a) %>% round(1)>0,"aumentaron","disminuyeron")` un `r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(2) %>% pull(var_i_a) %>% round(1)`%. La llegadas de turistas `r ifelse(llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(3) %>% pull(var_i_a) %>% round(1)>0,"crecieron","decrecieron")` un `r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(3) %>% pull(var_i_a) %>% round(1) %>% abs()`% en la región **`r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(3) %>% select(region)`**. **`r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(4) %>% select(region)`**, por su parte, vio  `r ifelse(llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(4) %>% pull(var_i_a) %>% round(1)>0,"incrementadas","disminuídas")` sus llegadas de turistas en un `r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(4) %>% pull(var_i_a) %>% round(1) %>% abs()`%. La peor performance la tuvo  **`r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(5) %>% select(region)`**, con una variación del `r llegadas_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-var_i_a)%>% slice(5) %>% pull(var_i_a) %>% round(1)` % respecto de `r as.character(anio_actual-1)`.
+
+```{r fig.cap=glue("Variación interanual de las llegadas de turistas internacionales por región. Años 2005-{max(llegadas_regiones_long$anio)}.")}
+llegadas_regiones_long %>%
+  filter(anio >= 2005 & region != "Mundo") %>%
+  ggplot(aes(x=anio,y=var_i_a,group=region,fill=region))+
+  geom_col(position = "dodge")+
+  scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  geom_text(data=llegadas_regiones_long %>%
+  filter(anio == anio_actual & region != "Mundo"),aes(label=format(round(var_i_a,1)),decimal.mark=","),
+  size=2.5,
+   vjust = -0.2)+
+  scale_fill_dnmye( guide = "none")+
+  theme(legend.position = "none")+
+  theme_minimal()+
+    facet_wrap(~region,scales="free_x")+
+  labs(x="",y="")
+```
+
+
+
+
+
+```{r}
+llegadas_subregion_long <- llegadas_subregiones %>% 
+  filter(!is.na(`2000`) & subregion != "Mundo") %>% 
+  mutate_at(vars(-c(region,subregion)),as.numeric) %>% 
+  pivot_longer(cols=-c(region,subregion),names_to = "anio",values_to = "llegadas") %>% 
+  arrange(anio) %>% 
+  group_by(region,subregion) %>% 
+  mutate(var_i_a = llegadas/lag(llegadas,1)-1,
+         var_2019 = llegadas/llegadas[anio==2019]-1) %>% 
+  group_by(anio) %>% 
+  mutate(part = llegadas/sum(llegadas),
+         anio=as.numeric(anio)) %>% 
+  ungroup() %>% 
+  filter(anio >=2005)
+data_tabla_subregion <- llegadas_subregion_long %>%  
+  filter(anio == anio_actual) %>% 
+  left_join( llegadas_subregiones %>% 
+  filter(!is.na(`2000`) & subregion != "Mundo") %>%
+    select(subregion,`2000`,`2005`,`2010`,`2015`,`2020`) %>% mutate_at(vars(-subregion),as.numeric))
+
+```
+
+A continuación se presenta una tabla con las llegadas de turistas internacionales para cada subregión dentro de las regiones antes mencionadas. 
+
+```{r tabla-omt-subregion}
+tabla_omt_subregion <- data_tabla_subregion %>% 
+  select(region,subregion,`2000`,`2005`,`2010`,`2015`,`2020`,llegadas,var_i_a,var_2019,part) %>% 
+  group_by(region) %>% 
+  gt() %>% 
+  tab_caption("Llegadas de turistas internacionales por subregión. En millones.") %>% 
+  # fmt_number( columns = c(`2000`,`2005`,`2010`,`2015`,`2020`,llegadas), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  gt_theme_dnmye()%>% 
+  fmt_percent(columns = c(part),decimals = 1, sep_mark = ".",dec_mark = ",") %>% 
+  tab_spanner(columns = c(llegadas,var_i_a,var_2019,part),
+               label = md(glue("**{anio_actual}**"))) %>% 
+  cols_label(subregion = md(""),
+             region = md(""),
+             var_i_a = md("Var. i.a. (%)"),
+             var_2019  = "Var. % vs. 2019",
+             part = md("Participación (%)")) %>% tab_style(
+    style = cell_text(weight =  "bold"),
+    locations = cells_row_groups()
+  ) %>% 
+  # tab_header(
+  #   title = md("**Llegadas de turistas internacionales por subregión**")
+  # ) %>%
+ tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a OMT")
+  ) %>% 
+  tab_options(container.height = 600,
+              container.overflow.y = T)
+tabla_omt_subregion
+#gtsave(tabla_omt_subregion, "imagenes/turismo_mundo/tabla_omt_subregion.png")
+
+  
+```
+
+```{r}
+ranking_ultimo <- llegadas_paises %>% 
+  filter(anio == anio_actual & indicador == "Overnights visitors (tourists)") %>% 
+  mutate(valor = 1000*as.numeric(valor)) %>% 
+  arrange(-valor)
+```
+
+<br>
+
+En el año `r as.character(anio_actual)`, el país con mayor cantidad de llegadas de turistas fue
+**`r filter(ranking_ultimo,row_number()==1) %>% pull(nombre)`**, con `r format(round(filter(ranking_ultimo,row_number()==1) %>% pull(valor)/1e+6,1),decimal.mark = ",")` millones, seguido de **`r filter(ranking_ultimo,row_number()==2) %>% pull(nombre)`** (`r format(round(filter(ranking_ultimo,row_number()==2) %>% pull(valor)/1e+6,1),decimal.mark = ",")` millones), **`r filter(ranking_ultimo,row_number()==3) %>% pull(nombre)`** (`r format(round(filter(ranking_ultimo,row_number()==3) %>% pull(valor)/1e+6,1),decimal.mark = ",")` millones) y **`r filter(ranking_ultimo,row_number()==4) %>% pull(nombre)`** (`r format(round(filter(ranking_ultimo,row_number()==4) %>% pull(valor)/1e+6,1),decimal.mark = ",")` millones).
+
+```{r omt-ranking, fig.cap=glue("Ranking de los 15 países que tuvieron mayor cantidad de turistas internacionales. Año {anio_actual}. Millones de turistas.")}
+ranking_ultimo %>% 
+  slice(1:15) %>% 
+  ggplot(aes(x=reorder(nombre,valor),y=valor))+
+  coord_flip()+
+  geom_col(aes(fill = valor), 
+          position = position_dodge()) +
+  geom_label(aes(label = format(round(valor/1e+6,1),decimal.mark=",")),
+             size = 3, label.size = 0.2,
+             label.padding =  unit(0.15, "lines"),position = position_dodge(width = 1),
+             #vjust = -0.2
+             ) +
+  scale_y_continuous(labels = scales::number_format(scale = 1/1e+6))+
+  scale_fill_dnmye(discrete = "F") +
+  labs(fill = "", x = "", y = "", caption = "**Fuente:** DNMyE en base a OMT") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.caption  = element_markdown())
+
+```
+
+```{r }
+data_tabla_paises <- llegadas_paises %>% 
+  filter(!is.na(nombre)) %>% 
+  filter(indicador == "Overnights visitors (tourists)") %>% 
+  mutate(valor = as.numeric(valor)/1000) %>% 
+  group_by(nombre) %>% 
+  mutate(var_i_a = valor/lag(valor,1)-1,
+         var_2019 = valor/valor[anio==2019]-1) %>% 
+  ungroup() %>% 
+  filter(anio %in% c(2000,2005,2010,2015,2020,anio_actual)) %>% 
+  select(nombre,anio,valor,var_i_a,var_2019) %>% 
+  pivot_wider(names_from = anio,values_from = c(valor,var_i_a,var_2019))
+```
+
+Las llegadas de turistas internacionales en **`r data_tabla_paises %>% arrange(-valor_2021) %>% slice(1) %>% pull(nombre)`** `r  ifelse(data_tabla_paises %>% arrange(-valor_2021) %>% slice(1) %>% pull(var_i_a_2021) >0,"crecieron",cayeron)` `r round(data_tabla_paises %>% arrange(-valor_2021) %>% slice(1) %>% pull(var_i_a_2021) %>% abs() *100,1 )`%. En comparación con 2019, la variación fue de `r round(data_tabla_paises %>% arrange(-valor_2021) %>% slice(1) %>% pull(var_2019_2021)  *100,1 )`%. El siguiente país en magnitud fue **`r data_tabla_paises %>% arrange(-valor_2021) %>% slice(2) %>% pull(nombre)`**, que `r  ifelse(data_tabla_paises %>% arrange(-valor_2021) %>% slice(2) %>% pull(var_i_a_2021) >0,"aumentó","disminuyó")` sus llegadas un `r round(data_tabla_paises %>% arrange(-valor_2021) %>% slice(2) %>% pull(var_i_a_2021) %>% abs() *100,1 )`% con respecto a `r as.character(anio_actual-1)` (`r round(data_tabla_paises %>% arrange(-valor_2021) %>% slice(2) %>% pull(var_2019_2021)  *100,1 )`% vs. 2019). Por su parte, las llegadas a **`r data_tabla_paises %>% arrange(-valor_2021) %>% slice(3) %>% pull(nombre)`** `r  ifelse(data_tabla_paises %>% arrange(-valor_2021) %>% slice(3) %>% pull(var_i_a_2021) >0,"se elevaron","se contrajeron")` un `r round(data_tabla_paises %>% arrange(-valor_2021) %>% slice(3) %>% pull(var_i_a_2021) %>% abs() *100,1 )`% (`r round(data_tabla_paises %>% arrange(-valor_2021) %>% slice(3) %>% pull(var_2019_2021)  *100,1 )`% vs. 2019).
+
+
+```{r tabla-omt-paises, fig.cap=""}
+tabla_llegadas_paises <- data_tabla_paises %>%
+  select(nombre,valor_2000,valor_2005,valor_2010,valor_2015,valor_2020,valor_2021,var_i_a_2021,var_2019_2021) %>% 
+  mutate_at(vars(-nombre),as.numeric) %>% 
+  arrange(-valor_2021) %>% 
+  slice(1:20) %>% 
+  gt() %>%
+  # fmt_number(columns=c(valor_2000,valor_2005,valor_2010,valor_2015,valor_2020,valor_2021),decimals = 1,dec_mark = ",") %>% 
+  gt_theme_dnmye() %>% 
+  tab_caption("Llegadas de turistas internacionales. En millones. Primeros 20 países.") %>% 
+  tab_spanner(columns = c(valor_2021,var_i_a_2021,var_2019_2021),
+               label = md(glue("**{anio_actual}**"))) %>% 
+  cols_label(nombre = md(""),
+             valor_2000 = md("2000"),
+             valor_2005 = md("2005"),
+             valor_2010  = md("2010"),
+             valor_2015 = md("2015"),
+             valor_2020 = md("2020"),
+             valor_2021 = md("Llegadas"),
+             var_i_a_2021 = md("Var. i.a. (%)"),
+             var_2019_2021 = md("Var. vs. 2019 (%)")) %>%
+  tab_style(
+    style = cell_text(weight =  "bold"),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a OMT")
+  )  %>% 
+  tab_options(container.height = 600,
+              container.overflow.y = T)
+
+tabla_llegadas_paises
+#gtsave(tabla_llegadas_paises, "imagenes/turismo_mundo/tabla_llegadas_paises.png")
+```
+
+```{r}
+data_graf_llegadas_paises <- 
+  llegadas_paises %>% 
+    mutate(valor = as.numeric(valor),
+         anio = as.numeric(anio)) %>% 
+  filter(indicador == "Overnights visitors (tourists)" & anio > 2004) %>%
+ filter(nombre %in% ( data_tabla_paises %>% arrange(-valor_2021) %>% slice(1:10) %>% pull(nombre))) 
+```
+
+```{r omt-llegadas-paises-serie, fig.cap=glue("Llegadas de turistas internacionales. En millones. Primeros 10 países. Años {min(data_graf_llegadas_paises$anio)}-{max(data_graf_llegadas_paises$anio)}.")}
+
+ggplot(data_graf_llegadas_paises,aes(x=anio,y=valor,color=nombre,group=nombre))+
+  geom_line()+
+  geom_point()+
+  scale_y_continuous(labels = scales::number_format(scale=1/1e+3))+
+  scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  #geom_label(data=filter(data_graf_llegadas_paises,anio==anio_actual),aes(label=pais))+
+  scale_color_dnmye(name="")+
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+    labs(x="",y="")
+```
+
+## Ingresos económicos
+```{r }
+data_ingresos_mundo <- ingresos_regiones_long %>% 
+  pivot_longer(cols = c("ingresos","var_i_a"),names_to="indicador",values_to = "valor") %>% 
+  mutate(etiqueta = factor(indicador, levels = c("ingresos", "var_i_a"),
+                      labels = c("Ingresos \n(en miles de millones de dólares)", "Variación interanual (%)")),
+         signo = ifelse(valor>=0,"positiva","negativa")) %>% 
+  filter(region == "Mundo" & anio >= 2005)
+```
+
+Los ingresos económicos por turismo internacional alcanzaron un total de  `r data_ingresos_mundo[data_ingresos_mundo$anio == anio_actual & data_ingresos_mundo$indicador == "ingresos","valor"]` mil millones de dólares, con un `r ifelse(data_ingresos_mundo[data_ingresos_mundo$anio == anio_actual & data_ingresos_mundo$indicador == "var_i_a","valor"] > 0,"aumento","descenso")` del `r  as.numeric(round(abs(data_ingresos_mundo[data_ingresos_mundo$anio == anio_actual & data_ingresos_mundo$indicador == "var_i_a","valor"]),1))`% respecto de `r as.character(anio_actual - 1)`. A su vez, estuvieron un `r as.numeric(abs(round(100*(data_ingresos_mundo[data_ingresos_mundo$anio == anio_actual & data_ingresos_mundo$indicador == "ingresos","valor"]/data_ingresos_mundo[data_ingresos_mundo$anio == 2019 & data_ingresos_mundo$indicador == "ingresos","valor"]-1),1)))`% por `r ifelse(data_ingresos_mundo[data_ingresos_mundo$anio == anio_actual & data_ingresos_mundo$indicador == "ingresos","valor"]/data_ingresos_mundo[data_ingresos_mundo$anio == 2019 & data_ingresos_mundo$indicador == "ingresos","valor"]-1>0,"encima","debajo")` de 2019.
+
+```{r omt-mundo-ingresos, fig.cap=glue("Ingresos por turismo internacional y variación interanual. Años {min(data_ingresos_mundo$anio)}-{max(data_ingresos_mundo$anio)}.")}
+data_ingresos_mundo %>% 
+  ggplot(aes(x=anio,y=valor,group=1))+
+  geom_col(data=filter(data_ingresos_mundo,indicador == "var_i_a"),aes(fill=signo))+
+  geom_line(data=filter(data_ingresos_mundo,indicador == "ingresos"),color=dnmye_colores(3))+
+  geom_point(data=filter(data_ingresos_mundo,indicador == "ingresos"),color=dnmye_colores(3))+
+  geom_text(aes(label = ifelse(indicador=="ingresos",format(round(valor,0),big.mark=".",decimal.mark=","),format(round(valor,1),big.mark=".",decimal.mark=","))),
+             size=3,#label.padding =  unit(1, "lines"),
+             vjust = -0.2
+             ) +
+  scale_fill_manual(values = c("negativa" = dnmye_colores(1), 
+                               "positiva" = dnmye_colores(5))) +
+   scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  scale_y_continuous(labels = scales::number_format(big.mark = "."),
+                     limits = c(NA,NA),
+                     expand=c(0,50))+
+  facet_wrap(~etiqueta,ncol=1,scales="free")+
+  labs(fill = "", x = "", y = "", caption = "Fuente: DNMyE en base a OMT") +
+  theme_minimal() +
+  coord_cartesian(clip = "off")+
+  theme(legend.position="none")
+```
+
+A nivel regional, el mayor nivel de ingresos económicos se registró en **`r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(1) %>% select(region)`** , con `r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(1) %>% pull(ingresos)` mil millones de dólares en el año `r as.character(anio_actual)` (`r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(1) %>% pull(var_i_a) %>% round(1)`% respecto de `r as.character(anio_actual-1)`); en segundo lugar se encontró **`r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(2) %>% pull(region)`**, con `r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(2) %>% pull(ingresos)` mil millones (`r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(2) %>% pull(var_i_a) %>% round(1)`% interanual); el tercer lugar lo ocupó **`r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(3) %>% pull(region)`**, con `r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(3) %>% pull(ingresos)` mil millones (`r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(3) %>% pull(var_i_a) %>% round(1)`%); la cuarta posición fue para 
+**`r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(4) %>% pull(region)`**, con `r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(4) %>% pull(ingresos)` mil millones (`r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(4) %>% pull(var_i_a) %>% round(1)`%); por último, la región de **`r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(5) %>% pull(region)`** recibió `r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(5) %>% pull(ingresos)` mil millones (`r ingresos_regiones_long %>% filter(anio==anio_actual & region!= "Mundo") %>% arrange(-ingresos)%>% slice(5) %>% pull(var_i_a) %>% round(1)`%).
+
+```{r ingresos-region, fig.cap=glue("Ingresos por turismo internacional por región. En miles de millones de dólares. Años 2005-{max(ingresos_regiones_long$anio)}.")}
+ingresos_regiones_long %>% 
+  filter(region != "Mundo") %>% 
+  filter(anio >= 2005) %>% 
+  ggplot(aes(x=anio,y=ingresos,group=region))+
+  geom_col(aes(fill=region))+
+  geom_label(data=ingresos_regiones_long %>% filter(anio %in% seq(anio_actual-15,anio_actual,by=5) & region != "Mundo"),aes(label = format(round(ingresos,0),big.mark=".",decimal.mark=",")),
+             size=3,
+             label.padding =  unit(0.15, "lines"),
+             position = position_stack(vjust = 0.5),
+             ) +
+   scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  scale_fill_dnmye() +
+  labs(fill = "", x = "", y = "", caption = "Fuente: DNMyE en base a OMT") +
+  theme_minimal() +
+  coord_cartesian(clip = "off")+
+  theme(legend.position="bottom")
+```
+
+```{r}
+ingresos_subregion_long <- ingresos_subregiones %>% 
+  filter(!is.na(`2000`) & subregion != "Mundo") %>% 
+  mutate_at(vars(-c(region,subregion)),as.numeric) %>% 
+  pivot_longer(cols=-c(region,subregion),names_to = "anio",values_to = "ingresos") %>% 
+  arrange(anio) %>% 
+  group_by(region,subregion) %>% 
+  mutate(var_i_a = ingresos/lag(ingresos,1)-1,
+         var_2019 = ingresos/ingresos[anio==2019]-1) %>% 
+  group_by(anio) %>% 
+  mutate(part = ingresos/sum(ingresos),
+         anio=as.numeric(anio)) %>% 
+  ungroup() %>% 
+  filter(anio >=2005)
+data_tabla_ingresos_subregion <- ingresos_subregion_long %>%  
+  filter(anio == anio_actual) %>% 
+  left_join( ingresos_subregiones %>% 
+  filter(!is.na(`2000`) & subregion != "Mundo") %>%
+    select(subregion,`2000`,`2005`,`2010`,`2015`,`2020`) %>% mutate_at(vars(-subregion),as.numeric))
+
+
+```
+
+
+
+A continuación se presenta una tabla con los ingresos económicos por turismo internacional para cada subregión dentro de las regiones antes mencionadas.
+
+```{r tabla-omt-ingresos-subregion}
+
+tabla_ingresos_omt_subregion <- data_tabla_ingresos_subregion %>% 
+  select(region,subregion,`2000`,`2005`,`2010`,`2015`,`2020`,ingresos,var_i_a,var_2019,part) %>% 
+  group_by(region) %>% 
+  gt() %>% 
+   gt_theme_dnmye()%>% 
+  fmt_percent(columns = c(part),decimals = 1, sep_mark = ".",dec_mark = ",") %>% 
+  # fmt_number(columns = c(`2000`,`2005`,`2010`,`2015`,`2020`,ingresos),decimals  = 1, sep_mark = ".",dec_mark = ",") %>% 
+  tab_caption("Ingresos por turismo internacional por subregión. En miles de millones de dólares.") %>% 
+ tab_spanner(columns = c(ingresos,var_i_a,var_2019,part),
+               label = md(glue("**{anio_actual}**"))) %>% 
+  cols_label(subregion = md(""),
+             ingresos = md("Ingresos"),
+             region = md(""),
+             var_i_a = md("Var. i.a. (%)"),
+             var_2019  = "Var. % vs. 2019",
+             part = md("Participación (%)")) %>% tab_style(
+    style = cell_text(weight =  "bold"),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_header(
+    title = md("")
+  ) %>%
+ tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a OMT")
+  )  %>% 
+  tab_options(container.height = 600,
+              container.overflow.y = T)
+tabla_ingresos_omt_subregion
+# gtsave(tabla_ingresos_omt_subregion, "imagenes/turismo_mundo/tabla_ingresos_omt_subregion.png")
+```
+```{r}
+
+ranking_ingresos_ultimo <- ingresos_paises %>% 
+  filter(anio == anio_actual & indicador == "Travel") %>% 
+  mutate(valor = 1000*as.numeric(valor)) %>% 
+  arrange(-valor)
+
+```
+
+<br>
+
+El país con mayores ingresos económicos por turismo internacional en `r as.character(anio_actual)` fue **`r ranking_ingresos_ultimo %>% slice(1) %>% pull(nombre)`**, con `r round(ranking_ingresos_ultimo %>% slice(1) %>% pull(as.numeric(valor)) / 1e+3 ,1)` millones de dólares de gasto de viajes de turistas internacionales; el segundo puesto lo ocupó **`r ranking_ingresos_ultimo %>% slice(2) %>% pull(nombre)`**, con `r round(ranking_ingresos_ultimo %>% slice(2) %>% pull(as.numeric(valor)) / 1e+3,1)` millones de dólares; le siguen  **`r ranking_ingresos_ultimo %>% slice(3) %>% pull(nombre)`** (US\$ `r round(ranking_ingresos_ultimo %>% slice(3) %>% pull(as.numeric(valor)) / 1e+3,1)` millones),  **`r ranking_ingresos_ultimo %>% slice(4) %>% pull(nombre)`** (US\$ `r round(ranking_ingresos_ultimo %>% slice(4) %>% pull(as.numeric(valor)) / 1e+3,1)` millones) y  **`r ranking_ingresos_ultimo %>% slice(5) %>% pull(nombre)`** (US$ `r round(ranking_ingresos_ultimo %>% slice(5) %>% pull(as.numeric(valor)) / 1e+3,1)` millones).
+
+```{r omt-ranking-ingresos, fig.cap=glue("Ranking de los primeros 15 países por ingresos económicos por turismo internacional (viajes). Año {anio_actual}. Miles de millones de dólares.")}
+ranking_ingresos_ultimo %>% 
+  slice(1:15) %>% 
+  ggplot(aes(x=reorder(nombre,valor),y=valor))+
+  coord_flip()+
+  geom_col(aes(fill = valor), 
+          position = position_dodge()) +
+  geom_label(aes(label = format(round(valor/1e+6,1),decimal.mark=",")),
+             size = 3, label.size = 0.2,
+             label.padding =  unit(0.15, "lines"),position = position_dodge(width = 1),
+             #vjust = -0.2
+             ) +
+  scale_y_continuous(labels = scales::number_format(scale = 1/1e+6))+
+  scale_fill_dnmye(discrete = "F") +
+  labs(fill = "", x = "", y = "", caption = "**Fuente:** DNMyE en base Organización Mundial del Turismo (OMT)") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.caption  = element_markdown())
+
+```
+
+
+<br>
+
+```{r tabla-omt-paises-ingresos}
+data_tabla_ingresos_paises <- ingresos_paises %>% 
+  filter(!is.na(nombre)) %>% 
+  filter(indicador == "Travel") %>% 
+  mutate(valor = as.numeric(valor)/1000) %>% 
+  group_by(nombre) %>% 
+  mutate(var_i_a = valor/lag(valor,1)-1,
+         var_2019 = valor/valor[anio==2019]-1) %>% 
+  ungroup() %>% 
+  filter(anio %in% c(2000,2005,2010,2015,2020,anio_actual)) %>% 
+  select(nombre,anio,valor,var_i_a,var_2019) %>% 
+  pivot_wider(names_from = anio,values_from = c(valor,var_i_a,var_2019)) 
+  
+tabla_ingresos_paises <- data_tabla_ingresos_paises %>%
+  select(nombre,valor_2000,valor_2005,valor_2010,valor_2015,valor_2020,valor_2021,var_i_a_2021,var_2019_2021) %>% 
+  mutate_at(vars(-nombre),as.numeric) %>% 
+  arrange(-valor_2021) %>% 
+  slice(1:20) %>% 
+  gt() %>% 
+  # fmt_number(columns = c(valor_2000,valor_2005,valor_2010,valor_2015,valor_2020,valor_2021),
+  #            decimals = 1,sep_mark = ".",dec_mark=",") %>% 
+  gt_theme_dnmye() %>% 
+  tab_caption("Ingresos económicos por turismo internacional (viajes). En miles de millones de dólares. Primeros 20 países.") %>% 
+  tab_spanner(columns = c(valor_2021,var_i_a_2021,var_2019_2021),
+               label = md(glue("**{anio_actual}**"))) %>% 
+  cols_label(nombre = md(""),
+             valor_2000 = md("2000"),
+             valor_2005 = md("2005"),
+             valor_2010  = md("2010"),
+             valor_2015 = md("2015"),
+             valor_2020 = md("2020"),
+             valor_2021 = md("Ingresos"),
+             var_i_a_2021 = md("Var. i.a. (%)"),
+             var_2019_2021 = md("Var. vs. 2019 (%)")) %>%
+  tab_style(
+    style = cell_text(weight =  "bold"),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a OMT")
+  )  %>% 
+  tab_options(container.height = 600,
+              container.overflow.y = T)
+
+tabla_ingresos_paises
+#gtsave(tabla_ingresos_paises, "imagenes/turismo_mundo/tabla_ingresos_paises.png")
+
+```
+
+```{r omt-ingresos-paises-serie, fig.cap="Ingresos por turismo internacional (viajes). En miles de millones de dólares."}
+
+data_graf_ingresos_paises <-   ingresos_paises %>% 
+    mutate(valor = as.numeric(valor),
+         anio = as.numeric(anio)) %>% 
+  filter(indicador == "Travel" & anio > 2004) %>%
+ filter(nombre %in% (data_tabla_ingresos_paises %>% arrange(-valor_2021) %>% slice(1:10) %>% pull(nombre))) 
+
+
+  ggplot(data_graf_ingresos_paises,aes(x=anio,y=valor,color=nombre,group=nombre))+
+  geom_line()+
+  geom_point()+
+  scale_y_continuous(labels = scales::number_format(scale=1/1e+3))+
+  scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  #geom_label(data=filter(data_graf_llegadas_paises,anio==anio_actual),aes(label=pais))+
+  scale_color_dnmye(name="")+
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+    labs(x="",y="")
+```
+
+## Egresos económicos
+
+```{r}
+
+ranking_egresos_ultimo <- egresos_paises %>% 
+  filter(anio == anio_actual & indicador == "Travel") %>% 
+  mutate(valor = 1000*as.numeric(valor)) %>% 
+  arrange(-valor)
+
+```
+
+El país con mayor nivel de gasto turístico en el exterior, en el año `r as.character(anio_actual)`, fue **`r ranking_egresos_ultimo %>% slice(1) %>% pull(nombre)`**, con egresos por `r round(ranking_egresos_ultimo %>% slice(1) %>% pull(valor)/1e+6,1)` mil millones de dólares; el segundo puesto lo ocupó **`r ranking_egresos_ultimo %>% slice(2) %>% pull(nombre)`**, con `r round(ranking_egresos_ultimo %>% slice(2) %>% pull(valor)/1e+6,1)` mil millones de dólares; **`r ranking_egresos_ultimo %>% slice(3) %>% pull(nombre)`** se ubicó en tercer lugar con egresos por US\$`r round(ranking_egresos_ultimo %>% slice(3) %>% pull(valor)/1e+6,1)` mil millones; la cuarta posición la ocupó **`r ranking_egresos_ultimo %>% slice(4) %>% pull(nombre)`** (US\$`r round(ranking_egresos_ultimo %>% slice(4) %>% pull(valor)/1e+6,1)` mil millones); en el quinto lugar estuvo **`r ranking_egresos_ultimo %>% slice(5) %>% pull(nombre)`** (US\$`r round(ranking_egresos_ultimo %>% slice(5) %>% pull(valor)/1e+6,1)` mil millones).
+
+<br>
+
+```{r omt-ranking-egresos, fig.cap=glue("Ranking de egresos económicos por turismo internacional (viajes). Año {anio_actual}. Miles de millones de dólares. Primeros 15 países.")}
+ranking_egresos_ultimo %>% 
+  slice(1:15) %>% 
+  ggplot(aes(x=reorder(nombre,valor),y=valor))+
+  coord_flip()+
+  geom_col(aes(fill = valor), 
+          position = position_dodge()) +
+  geom_label(aes(label = format(round(valor/1e+6,1),decimal.mark=",")),
+             size = 3, label.size = 0.2,
+             label.padding =  unit(0.15, "lines"),position = position_dodge(width = 1),
+             #vjust = -0.2
+             ) +
+  scale_y_continuous(labels = scales::number_format(scale = 1/1e+6))+
+  scale_fill_dnmye(discrete = "F") +
+  labs(fill = "", x = "", y = "", caption = "**Fuente:** DNMyE en base a OMT") +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.caption  = element_markdown())
+
+```
+
+```{r tabla-omt-paises-egresos}
+data_tabla_egresos_paises <- egresos_paises %>% 
+  filter(!is.na(nombre)) %>% 
+  filter(indicador == "Travel") %>% 
+  mutate(valor = as.numeric(valor)/1000) %>% 
+  group_by(nombre) %>% 
+  mutate(var_i_a = valor/lag(valor,1)-1,
+         var_2019 = valor/valor[anio==2019]-1) %>% 
+  ungroup() %>% 
+  filter(anio %in% c(2000,2005,2010,2015,2020,anio_actual)) %>% 
+  select(nombre,anio,valor,var_i_a,var_2019) %>% 
+  pivot_wider(names_from = anio,values_from = c(valor,var_i_a,var_2019)) 
+  
+tabla_egresos_paises <- data_tabla_egresos_paises %>%
+  select(nombre,valor_2000,valor_2005,valor_2010,valor_2015,valor_2020,valor_2021,var_i_a_2021,var_2019_2021) %>% 
+  mutate_at(vars(-nombre),as.numeric) %>% 
+  arrange(-valor_2021) %>% 
+  slice(1:20) %>% 
+  gt() %>% 
+  # fmt_number(columns = c(valor_2000,valor_2005,valor_2010,valor_2015,valor_2020,valor_2021),
+  #            decimals = 1,sep_mark=".",dec_mark = ",") %>% 
+  tab_caption("Egresos económicos por turismo internacional (viajes). En miles de millones de dólares. Primeros 20 países.") %>% 
+  gt_theme_dnmye() %>% 
+  tab_spanner(columns = c(valor_2021,var_i_a_2021,var_2019_2021),
+               label = md(glue("**{anio_actual}**"))) %>% 
+  cols_label(nombre = md(""),
+             valor_2000 = md("2000"),
+             valor_2005 = md("2005"),
+             valor_2010  = md("2010"),
+             valor_2015 = md("2015"),
+             valor_2020 = md("2020"),
+             valor_2021 = md("Egresos"),
+             var_i_a_2021 = md("Var. i.a. (%)"),
+             var_2019_2021 = md("Var. vs. 2019 (%)")) %>%
+  tab_style(
+    style = cell_text(weight =  "bold"),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a OMT")
+  )  %>% 
+  tab_options(container.height = 600,
+              container.overflow.y = T)
+
+tabla_egresos_paises
+#gtsave(tabla_egresos_paises, "imagenes/turismo_mundo/tabla_egresos_paises.png")
+
+```
+
+<br>
+
+```{r omt-egresos-paises-serie, fig.cap=glue("Egresos por turismo internacional (viajes). En miles de millones de dólares. Años 2005-{max(data_graf_egresos_paises$anio)}.")}
+
+data_graf_egresos_paises <-  egresos_paises %>% 
+    mutate(valor = as.numeric(valor),
+         anio = as.numeric(anio)) %>% 
+  filter(indicador == "Travel" & anio > 2004) %>%
+ filter(nombre %in% (data_tabla_egresos_paises %>% arrange(-valor_2021) %>% slice(1:10) %>% pull(nombre))) 
+
+
+  ggplot(data_graf_egresos_paises,aes(x=anio,y=valor,color=nombre,group=nombre))+
+  geom_line()+
+  geom_point()+
+  scale_y_continuous(labels = scales::number_format(scale=1/1e+3))+
+  scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  #geom_label(data=filter(data_graf_llegadas_paises,anio==anio_actual),aes(label=pais))+
+  scale_color_dnmye(name="")+
+  #coord_cartesian(clip="off")+
+  theme_minimal()+
+  theme(legend.position = "bottom",
+        legend.spacing.x  = unit(1,"point"))+
+    labs(x="",y="")
+```
+
+## Panorama Regional
+
+A continuación se presenta la información de turismo internacional haciendo foco en los países del continente americano en su conjunto y, en particular, en la subregión de América del Sur.
+
+### Llegadas de turistas
+
+Al interior del continente americano, la región con más llegadas de turistas internacionales en `r as.character(anio_actual)` fue **`r llegadas_subregion_long %>% filter(anio==anio_actual & region== "América") %>% arrange(-llegadas)%>% slice(1) %>% pull(subregion)`**, con `r llegadas_subregion_long %>% filter(anio==anio_actual & region== "América") %>% arrange(-llegadas)%>% slice(1) %>% pull(llegadas)` millones de turistas; el segundo lugar lo ocupó **`r llegadas_subregion_long %>% filter(anio==anio_actual & region== "América") %>% arrange(-llegadas)%>% slice(2) %>% pull(subregion)`**, con `r llegadas_subregion_long %>% filter(anio==anio_actual & region== "América") %>% arrange(-llegadas)%>% slice(2) %>% pull(llegadas)` millones; la tercera posición fue para **`r llegadas_subregion_long %>% filter(anio==anio_actual & region== "América") %>% arrange(-llegadas)%>% slice(3) %>% pull(subregion)`** (`r llegadas_subregion_long %>% filter(anio==anio_actual & region== "América") %>% arrange(-llegadas)%>% slice(2) %>% pull(llegadas)` millones); por último, **`r llegadas_subregion_long %>% filter(anio==anio_actual & region== "América") %>% arrange(-llegadas)%>% slice(4) %>% pull(subregion)`** recibió `r llegadas_subregion_long %>% filter(anio==anio_actual & region== "América") %>% arrange(-llegadas)%>% slice(4) %>% pull(llegadas)` millones de turistas en el año.
+
+```{r llegadas-america,fig.cap=glue("América: llegadas de turistas internacionales por subregión. En millones. Años 2005-{max(llegadas_subregion_long$anio)}.")}
+llegadas_subregion_long %>% 
+  filter(anio >= 2005 & region == "América") %>% 
+  ggplot(aes(x=anio,y=llegadas,group=subregion))+
+  geom_col(aes(fill=subregion))+
+  geom_label(data=llegadas_subregion_long %>% filter(anio %in% seq(anio_actual-15,anio_actual,by=5) & region == "América"),aes(label = format(round(llegadas,1),big.mark=".",decimal.mark=",")),
+             size=3,
+             label.padding =  unit(0.15, "lines"),
+             position = position_stack(vjust = 0.5),
+             ) +
+  scale_fill_dnmye() +
+  scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  labs(fill = "", x = "", y = "", caption = "Fuente: DNMyE en base a OMT") +
+  theme_minimal() +
+  coord_cartesian(clip = "off")+
+  theme(legend.position="bottom")
+```
+
+```{r }
+data_tabla_america <- llegadas_america_long %>% 
+  mutate(llegadas = as.numeric(llegadas)) %>% 
+  group_by(region) %>% 
+  mutate(var_i_a = llegadas/lag(llegadas,1)-1,
+         var_2019 = llegadas/llegadas[anio==2019]-1) %>% 
+  ungroup() %>% 
+  filter(anio %in% c(2000,2005,2010,2015,2020,anio_actual)) %>% 
+  select(pais=region,anio,llegadas,var_i_a,var_2019) %>% 
+  pivot_wider(names_from = anio,values_from = c(llegadas,var_i_a,var_2019))
+```
+
+En América, el país que recibió más turistas en `r as.character(anio_actual)` fue **`r data_tabla_america %>% arrange(-llegadas_2021) %>% slice(1) %>% pull(pais)`**, con `r data_tabla_america %>% arrange(-llegadas_2021) %>% slice(1) %>% pull(llegadas_2021) %>% round(1)` millones; en segundo lugar se ubicó **`r data_tabla_america %>% arrange(-llegadas_2021) %>% slice(2) %>% pull(pais)`**, con `r data_tabla_america %>% arrange(-llegadas_2021) %>% slice(2) %>% pull(llegadas_2021) %>% round(1)` millones; detrás de él estuvo **`r data_tabla_america %>% arrange(-llegadas_2021) %>% slice(3) %>% pull(pais)`**, con `r data_tabla_america %>% arrange(-llegadas_2021) %>% slice(3) %>% pull(llegadas_2021) %>% round(1)` millones; el cuarto lugar lo ocupó **`r data_tabla_america %>% arrange(-llegadas_2021) %>% slice(4) %>% pull(pais)`**, con `r data_tabla_america %>% arrange(-llegadas_2021) %>% slice(4) %>% pull(llegadas_2021) %>% round(1)` millones; la quinta posición fue para **`r data_tabla_america %>% arrange(-llegadas_2021) %>% slice(5) %>% pull(pais)`**, con `r data_tabla_america %>% arrange(-llegadas_2021) %>% slice(5) %>% pull(llegadas_2021) %>% round(1)` millones de llegadas en `r as.character(anio_actual)`
+
+```{r  tabla-omt-america}
+tabla_llegadas_america <- data_tabla_america %>%
+  select(pais,llegadas_2005,llegadas_2010,llegadas_2015,llegadas_2020,llegadas_2021,var_i_a_2021,var_2019_2021) %>% 
+  mutate_at(vars(-pais),as.numeric) %>% 
+  arrange(-llegadas_2021) %>% 
+  slice(1:20) %>% 
+  gt() %>% 
+  # fmt_number(columns=c(llegadas_2005,llegadas_2010,llegadas_2015,llegadas_2020,llegadas_2021),decimals = 1,dec_mark = ",") %>% 
+  gt_theme_dnmye() %>% 
+  tab_caption("América: llegadas de turistas internacionales. En millones. Primeros 20 países.") %>% 
+  tab_spanner(columns = c(llegadas_2021,var_i_a_2021,var_2019_2021),
+               label = md(glue("**{anio_actual}**"))) %>% 
+  cols_label(pais = md(""),
+             llegadas_2005 = md("2005"),
+             llegadas_2010  = md("2010"),
+             llegadas_2015 = md("2015"),
+             llegadas_2020 = md("2020"),
+             llegadas_2021 = md("Llegadas"),
+             var_i_a_2021 = md("Var. i.a. (%)"),
+             var_2019_2021 = md("Var. vs. 2019 (%)")) %>%
+  tab_style(
+    style = cell_text(weight =  "bold"),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a OMT")
+  )  %>% 
+  tab_options(container.height = 600,
+              container.overflow.y = T)
+tabla_llegadas_america
+#gtsave(tabla_llegadas_america, "imagenes/turismo_mundo/tabla_llegadas_america.png")
+```
+
+<br>
+
+El subcontinente América del Sur tuvo a **`r llegadas_america_long %>%  filter(regiones == "América del Sur" & anio == anio_actual) %>% arrange(-llegadas) %>% slice(1) %>% pull(region)`** como el país con más llegadas de turistas internacionales en `r as.character(anio_actual)` (`r llegadas_america_long %>%  filter(regiones == "América del Sur" & anio == anio_actual) %>% arrange(-llegadas) %>% slice(1) %>% pull(llegadas) %>% round(1)` millones de turistas); por detrás se ubicó **`r llegadas_america_long %>%  filter(regiones == "América del Sur" & anio == anio_actual) %>% arrange(-llegadas) %>% slice(2) %>% pull(region)`**, con `r llegadas_america_long %>%  filter(regiones == "América del Sur" & anio == anio_actual) %>% arrange(-llegadas) %>% slice(2) %>% pull(llegadas) %>% round(1)` millones; en tercera posición estuvo **`r llegadas_america_long %>%  filter(regiones == "América del Sur" & anio == anio_actual) %>% arrange(-llegadas) %>% slice(3) %>% pull(region)`**, con `r llegadas_america_long %>%  filter(regiones == "América del Sur" & anio == anio_actual) %>% arrange(-llegadas) %>% slice(3) %>% pull(llegadas) %>% round(1)` millones; el cuarto puesto fue para **`r llegadas_america_long %>%  filter(regiones == "América del Sur" & anio == anio_actual) %>% arrange(-llegadas) %>% slice(4) %>% pull(region)`** (`r llegadas_america_long %>%  filter(regiones == "América del Sur" & anio == anio_actual) %>% arrange(-llegadas) %>% slice(4) %>% pull(llegadas) %>% round(1)` millones); **`r llegadas_america_long %>%  filter(regiones == "América del Sur" & anio == anio_actual) %>% arrange(-llegadas) %>% slice(5) %>% pull(region)`** se ubicó en la quinta posición, con `r llegadas_america_long %>%  filter(regiones == "América del Sur" & anio == anio_actual) %>% arrange(-llegadas) %>% slice(5) %>% pull(llegadas) %>% round(1)` millones de llegadas de turistas internacionales en `r as.character(anio_actual)`.
+
+```{r sudamerica-llegadas, fig.cap=glue("América del Sur: llegadas de turistas internacionales. Año {anio_actual}. Millones de turistas.")}
+llegadas_america_long %>% 
+  filter(regiones == "América del Sur" & anio == anio_actual & !is.na(llegadas)) %>% 
+  ggplot(aes(x=reorder(region,llegadas),y=llegadas,group=region))+
+  geom_col(aes(fill=llegadas))+
+  geom_label(aes(label=format(round(llegadas,1),decimal.mark=",")),
+             #size = 3, 
+             size = 3, label.size = 0.2,
+             label.padding =  unit(0.15, "lines"),position = position_dodge(width = 1))+
+  coord_flip(clip="off")+
+  scale_fill_dnmye(discrete = F)+
+  scale_y_continuous(label=scales::number_format(decimal.mark = ","))+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x="",y="")
+```
+
+
+
+```{r omt-llegadas-sudamerica-serie, fig.cap=glue("América del Sur: llegadas de turistas internacionales. En millones. Años 2005-{max(llegadas_america_long$anio)}.")}
+llegadas_america_long %>% 
+  filter(regiones == "América del Sur") %>% 
+  ggplot(aes(x=anio,y=llegadas,color=region,group=region))+
+  geom_line()+
+  geom_point()+
+  scale_y_continuous(labels = scales::number_format(scale=1/1e+3))+
+  scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  #geom_label(data=filter(data_graf_llegadas_paises,anio==anio_actual),aes(label=pais))+
+  scale_color_dnmye(name="")+
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+    labs(x="",y="")
+```
+
+### Ingresos económicos
+
+Los ingresos económicos en el continente americano sumaron `r  ingresos_regiones_long %>% filter(anio==anio_actual & region== "América")  %>% pull(ingresos)` mil millones de dólares en `r as.character(anio_actual)`. **`r ingresos_subregion_long %>% filter(anio==anio_actual & region == "América") %>% arrange(-ingresos) %>% slice(1)%>% pull(subregion)`** recibió ingresos por `r  ingresos_subregion_long %>% filter(anio==anio_actual & region == "América") %>% arrange(-ingresos) %>% slice(1)%>% pull(ingresos)` mil millones de dólares. Por su parte, en **`r ingresos_subregion_long %>% filter(anio==anio_actual & region == "América") %>% arrange(-ingresos) %>% slice(2)%>% pull(subregion)`** ingresaron US\$ `r  ingresos_subregion_long %>% filter(anio==anio_actual & region == "América") %>% arrange(-ingresos) %>% slice(2)%>% pull(ingresos)` mil millones por ese concepto. Los ingresos de **`r ingresos_subregion_long %>% filter(anio==anio_actual & region == "América") %>% arrange(-ingresos) %>% slice(3)%>% pull(subregion)`** fueron de  US\$ `r  ingresos_subregion_long %>% filter(anio==anio_actual & region == "América") %>% arrange(-ingresos) %>% slice(3)%>% pull(ingresos)` mil millones. Por último, **`r ingresos_subregion_long %>% filter(anio==anio_actual & region == "América") %>% arrange(-ingresos) %>% slice(4)%>% pull(subregion)`** recibió US\$ `r  ingresos_subregion_long %>% filter(anio==anio_actual & region == "América") %>% arrange(-ingresos) %>% slice(4)%>% pull(ingresos)` mil millones.
+
+```{r ingresos-america,fig.cap=glue("América: ingresos por turismo internacional por subregión. En miles de  millones de dólares. Años 2005-{max(ingresos_subregion_long$anio)}.")}
+ingresos_subregion_long %>% 
+  filter(anio >= 2005 & region == "América") %>% 
+  ggplot(aes(x=anio,y=ingresos,group=subregion))+
+  geom_col(aes(fill=subregion))+
+  geom_label(data=ingresos_subregion_long %>% filter(anio %in% seq(anio_actual-15,anio_actual,by=5) & region == "América"),aes(label = format(round(ingresos,1),big.mark=".",decimal.mark=",")),
+             size=3,
+             label.padding =  unit(0.15, "lines"),
+             position = position_stack(vjust = 0.5),
+             ) +
+  scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  scale_fill_dnmye() +
+  labs(fill = "", x = "", y = "", caption = "Fuente: DNMyE en base a OMT") +
+  theme_minimal() +
+  coord_cartesian(clip = "off")+
+  theme(legend.position="bottom")
+```
+
+```{r}
+data_tabla_america_ingresos <- ingresos_america_long %>% 
+  mutate(ingresos = as.numeric(ingresos)) %>% 
+  group_by(pais) %>% 
+  mutate(var_i_a = ingresos/lag(ingresos)-1,
+         var_2019 = ingresos/ingresos[anio==2019]-1) %>% 
+  ungroup() %>% 
+  filter(anio %in% c(2000,2005,2010,2015,2020,anio_actual)) %>% 
+  select(pais,anio,ingresos,var_i_a,var_2019) %>% 
+  pivot_wider(names_from = anio,values_from = c(ingresos,var_i_a,var_2019)) 
+```
+
+El país del continente americano con mayor cantidad de ingresos económicos por turismo en `r as.character(anio_actual)` fue **`r data_tabla_america_ingresos %>% arrange(-ingresos_2021) %>% slice(1) %>% pull(pais)`**, con US\$ `r data_tabla_america_ingresos %>% arrange(-ingresos_2021) %>% slice(1) %>% pull(ingresos_2021) %>% round(1)` millones; en segundo lugar se ubicó **`r data_tabla_america_ingresos %>% arrange(-ingresos_2021) %>% slice(2) %>% pull(pais)`**, con US\$ `r data_tabla_america_ingresos %>% arrange(-ingresos_2021) %>% slice(2) %>% pull(ingresos_2021) %>% round(1)` millones; detrás de él estuvo **`r data_tabla_america_ingresos %>% arrange(-ingresos_2021) %>% slice(3) %>% pull(pais)`**, con US\$ `r data_tabla_america_ingresos %>% arrange(-ingresos_2021) %>% slice(3) %>% pull(ingresos_2021) %>% round(1)` millones; el cuarto lugar lo ocupó **`r data_tabla_america_ingresos %>% arrange(-ingresos_2021) %>% slice(4) %>% pull(pais)`**, con US\$ `r data_tabla_america_ingresos %>% arrange(-ingresos_2021) %>% slice(4) %>% pull(ingresos_2021) %>% round(1)` millones, la quinta posición fue para **`r data_tabla_america_ingresos %>% arrange(-ingresos_2021) %>% slice(5) %>% pull(pais)`**, con `r data_tabla_america_ingresos %>% arrange(-ingresos_2021) %>% slice(5) %>% pull(ingresos_2021) %>% round(1)` millones de dólares en `r as.character(anio_actual)`.
+
+```{r ingresos-america-paises}
+tabla_ingresos_america <- data_tabla_america_ingresos %>%
+  select(pais,ingresos_2005,ingresos_2010,ingresos_2015,ingresos_2020,ingresos_2021,var_i_a_2021,var_2019_2021) %>% 
+  mutate_at(vars(-pais),as.numeric) %>% 
+  arrange(-ingresos_2021) %>% 
+  slice(1:20) %>% 
+  gt() %>% 
+  # fmt_percent(columns=c(var_i_a_2021,var_2019_2021),decimals = 1,dec_mark = ",") %>% 
+  gt_theme_dnmye() %>% 
+  fmt_number( columns = c(ingresos_2005,ingresos_2010,ingresos_2015,ingresos_2020,ingresos_2021), decimals = 0, dec_mark = ",", sep_mark = ".") %>% 
+  tab_caption("América: ingresos por turismo internacional. En millones de dólares. Primeros 20 países.") %>% 
+  tab_spanner(columns = c(ingresos_2021,var_i_a_2021,var_2019_2021),
+               label = md(glue("**{anio_actual}**"))) %>% 
+  cols_label(pais = md(""),
+             ingresos_2005 = md("2005"),
+             ingresos_2010  = md("2010"),
+             ingresos_2015 = md("2015"),
+             ingresos_2020 = md("2020"),
+             ingresos_2021 = md("Ingresos"),
+             var_i_a_2021 = md("Var. i.a. (%)"),
+             var_2019_2021 = md("Var. vs. 2019 (%)")) %>%
+  tab_style(
+    style = cell_text(weight =  "bold"),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a OMT")
+  )  %>% 
+  tab_options(container.height = 600,
+              container.overflow.y = T)
+tabla_ingresos_america
+#gtsave(tabla_ingresos_america, "imagenes/turismo_mundo/tabla_ingresos_america.png")
+```
+
+En Sudamérica, los ingresos por turismo estuvieron liderados por **`r ingresos_america_long %>%  filter(subregion == "América del Sur" & anio == anio_actual) %>% arrange(-ingresos) %>% slice(1) %>% pull(pais)`**, con `r ingresos_america_long %>%  filter(subregion == "América del Sur" & anio == anio_actual) %>% arrange(-ingresos) %>% slice(1) %>% pull(ingresos)` millones de dólares por esa vía; detrás se ubicó **`r ingresos_america_long %>%  filter(subregion == "América del Sur" & anio == anio_actual) %>% arrange(-ingresos) %>% slice(2) %>% pull(pais)`**, con ingresos por `r ingresos_america_long %>%  filter(subregion == "América del Sur" & anio == anio_actual) %>% arrange(-ingresos) %>% slice(2) %>% pull(ingresos)` millones de dólares; en tercer lugar estuvo **`r ingresos_america_long %>%  filter(subregion == "América del Sur" & anio == anio_actual) %>% arrange(-ingresos) %>% slice(3) %>% pull(pais)`** (US\$ `r ingresos_america_long %>%  filter(subregion == "América del Sur" & anio == anio_actual) %>% arrange(-ingresos) %>% slice(3) %>% pull(ingresos)` millones); **`r ingresos_america_long %>%  filter(subregion == "América del Sur" & anio == anio_actual) %>% arrange(-ingresos) %>% slice(4) %>% pull(pais)`** ocupó el cuarto lugar, con US\$ `r ingresos_america_long %>%  filter(subregion == "América del Sur" & anio == anio_actual) %>% arrange(-ingresos) %>% slice(4) %>% pull(ingresos)` millones; por último, **`r ingresos_america_long %>%  filter(subregion == "América del Sur" & anio == anio_actual) %>% arrange(-ingresos) %>% slice(5) %>% pull(pais)`** recibió  `r ingresos_america_long %>%  filter(subregion == "América del Sur" & anio == anio_actual) %>% arrange(-ingresos) %>% slice(5) %>% pull(ingresos)` millones de dólares en `r as.character(anio_actual)`.
+
+```{r sudamerica-ingresos, fig.cap=glue("América del Sur: Ingresos por turismo internacional. Año {anio_actual}. Millones de dólares.")}
+ingresos_america_long %>% 
+  filter(subregion == "América del Sur" & anio == anio_actual & !is.na(ingresos)) %>% 
+  ggplot(aes(x=reorder(pais,ingresos),y=ingresos,group=pais))+
+  geom_col(aes(fill=ingresos))+
+  geom_label(aes(label=format(round(ingresos,1),decimal.mark=",",big.mark=".")),
+             size = 3, 
+             label.size = 0.2,
+             label.padding =  unit(0.15, "lines"),position = position_dodge(width = 1))+
+  coord_flip(clip="off")+
+  scale_fill_dnmye(discrete = F)+
+  scale_y_continuous(label=scales::number_format())+
+  theme_minimal()+
+  theme(legend.position = "none")+
+  labs(x="",y="")
+```
+
+```{r omt-ingresos-sudamerica-serie, fig.cap=glue("América del Sur: Ingresos por turismo internacional. En millones. Años 2005-{max(ingresos_america_long$anio)}.")}
+ingresos_america_long %>% 
+  filter(subregion == "América del Sur") %>% 
+  ggplot(aes(x=anio,y=ingresos,color=pais,group=pais))+
+  geom_line()+
+  geom_point()+
+  scale_y_continuous(labels = scales::number_format(scale=1/1e+3))+
+  scale_x_continuous(breaks = seq(anio_actual-15,anio_actual,by=5),
+                     labels = seq(anio_actual-15,anio_actual,by=5))+
+  #geom_label(data=filter(data_graf_llegadas_paises,anio==anio_actual),aes(label=pais))+
+  scale_color_dnmye(name="")+
+  theme_minimal()+
+  theme(legend.position = "bottom")+
+    labs(x="",y="")
+```

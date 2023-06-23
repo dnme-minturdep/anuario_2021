@@ -1,0 +1,1927 @@
+---
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+
+```{r}
+library(tidyverse)
+library(comunicacion)
+library(lubridate)
+library(gt)
+library(glue)
+library(ggtext)
+library(herramientas)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.topcaption=TRUE)
+options(scipen = 99)
+```
+
+
+```{r}
+#Cargo base de trabajo
+base_eoh_region <- read_file_srv("/economia2/anuario/base_eoh_region.csv")
+base_eoh_total <- read_file_srv("/economia2/anuario/base_eoh_total.csv")
+base_eoh_region_2021 <- read_file_srv("/economia2/anuario/base_eoh_region_2021.csv")
+anio_anuario <- "2021"
+
+
+
+base_eoh_total_procesada <- base_eoh_total %>% 
+  group_by(anio) %>% 
+  summarise(puestos_promedio=sum(prom_puestos)/12,
+            pernoctes=sum(total_pernoctes),
+            establecimientos=sum(prom_establecimientos)/12) 
+```
+
+
+
+# **El empleo en turismo** {#empleo}
+## Introducción
+
+Este capítulo se compone de dos secciones que abordan el empleo en turismo de manera diferente pero complementaria. 
+
+La primera sección procura cuantificar el volumen, la evolución y describir algunas características básicas de los empleos (personal ocupado o puestos de trabajo) en los hoteles y parahoteles para el período 2012-2021, según la información relevada por la Encuesta de Ocupación Hotelera (EOH).
+
+En la segunda y última sección se presenta información de puestos de trabajo registrados en ramas características del turismo, la participación por género y la cantidad de empleadores para el período 2012-2021 a partir de la información publicada por el Centro de Estudios para la Producción (CEP XXI).
+
+## El empleo en hoteles y parahoteles
+### **Introducción**
+
+La información referida a empleo es explotada por la Dirección a través de la Encuesta de Ocupación Hotelera (EOH) y se dispone desde el año 2012 en adelante. La misma se encuentra disponible [aquí](https://datos.yvera.gob.ar/dataset/encuesta-ocupacion-hotelera-parahotelera-eoh). Para ampliar la información metodológica de dicha encuesta puede dirigirse al capítulo \@ref(alojamiento-turistico) o bien puede consultarse el siguiente [link](https://www.yvera.tur.ar/sinta/informe/documentos/descarga/60c8a5294550f707538011.pdf).
+
+En el primer apartado de esta sección se analizan los puestos de trabajo en hoteles y parahoteles (PTH) en el total nacional, mientras que el apartado siguiente focaliza en la información regional desde una perspectiva comparativa.
+
+
+
+```{r}
+
+tabla_datos <- base_eoh_total_procesada %>% 
+  mutate(pernoctes_puestos=pernoctes/puestos_promedio,
+         puestos_establecimientos=puestos_promedio/establecimientos,
+         pernoctes=pernoctes/1000) %>% 
+  pivot_longer(cols = c(puestos_promedio, pernoctes, pernoctes_puestos, establecimientos, puestos_establecimientos), 
+               names_to = "indicador", values_to = "cantidad") %>% 
+  mutate(var_ia=round(cantidad/ lag(cantidad, n = 5) -1, 3)) %>% 
+  pivot_longer(cols = c(cantidad, var_ia), names_to = "tipo_variable", values_to = "valores") %>% 
+  pivot_wider(names_from = c("indicador", "tipo_variable"), values_from = valores)
+
+  
+tabla_1_1 <- tabla_datos %>%
+  gt(rowname_col = "anio") %>% 
+  cols_label(
+    puestos_promedio_cantidad           = md("**Cantidad promedio**"),
+    puestos_promedio_var_ia             = md("**Var i.a.**"),
+    pernoctes_cantidad                  = md("**En miles**"),
+    pernoctes_var_ia                    = md("**Var i.a.**"),
+    pernoctes_puestos_cantidad          = md ("**Cantidad**"),
+    pernoctes_puestos_var_ia            = md ("**Var i.a.**"),
+    establecimientos_cantidad           = md("**Cantidad**"),
+    establecimientos_var_ia             = md ("**Var i.a.**"),
+    puestos_establecimientos_cantidad   = md("**Cantidad**"),
+    puestos_establecimientos_var_ia     =md ("**Var i.a.**")) %>% 
+  fmt_number(columns = c(6,10), decimals = 1, sep_mark = ".", dec_mark = ",") %>%
+  fmt_number(columns = c(2,4,8), decimals = 0, sep_mark = ".", dec_mark = ",") %>%
+  fmt_percent(columns = c(3,5,7,9,11), decimals = 1, dec_mark = ",") %>% 
+  cols_align(
+    align = "center",
+    columns = vars(puestos_promedio_cantidad,
+    puestos_promedio_var_ia,
+    pernoctes_cantidad,
+    pernoctes_var_ia,
+    pernoctes_puestos_cantidad,
+    pernoctes_puestos_var_ia,
+    establecimientos_cantidad,
+    establecimientos_var_ia,
+    puestos_establecimientos_cantidad,
+    puestos_establecimientos_var_ia)   
+    )  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans")
+    )
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente:** DNMyE en base a Encuesta de Ocupación Hotelera")
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(puestos_promedio_var_ia),
+      rows = puestos_promedio_var_ia < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(puestos_promedio_var_ia),
+      rows = puestos_promedio_var_ia > 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(pernoctes_var_ia),
+      rows = pernoctes_var_ia < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(pernoctes_var_ia),
+      rows = pernoctes_var_ia > 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(pernoctes_puestos_var_ia),
+      rows = pernoctes_puestos_var_ia < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(pernoctes_puestos_var_ia),
+      rows = pernoctes_puestos_var_ia > 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(establecimientos_var_ia),
+      rows = establecimientos_var_ia < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(establecimientos_var_ia),
+      rows = establecimientos_var_ia > 0)
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(puestos_establecimientos_var_ia),
+      rows = puestos_establecimientos_var_ia < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(puestos_establecimientos_var_ia),
+      rows = puestos_establecimientos_var_ia > 0)
+  ) %>% 
+  ## AGRUPAMIENTO DE COLUMNAS POR VARIABLE DE INTERES
+  tab_spanner(
+    label = md("**PUESTOS DE TRABAJO**"),
+    columns = vars(puestos_promedio_cantidad,
+                   puestos_promedio_var_ia)
+  ) %>%
+  tab_spanner(
+    label = md("**PERNOCTES**"),
+    columns = vars(pernoctes_cantidad,
+                   pernoctes_var_ia)
+  ) %>%
+  tab_spanner(
+    label = md("**Pernoctes/Puestos de trabajo**"),
+    columns = vars(pernoctes_puestos_cantidad,
+                  pernoctes_puestos_var_ia)
+  )  %>%
+  tab_spanner(
+    label = md("**ESTABLECIMIENTOS**"),
+    columns = vars(establecimientos_cantidad,
+                   establecimientos_var_ia)
+  ) %>%
+  tab_spanner(
+    label = md("**Puestos de trabajo/establecimientos**"),
+    columns = vars(puestos_establecimientos_cantidad,
+                   puestos_establecimientos_var_ia)
+  ) %>% 
+  tab_stubhead(label = "") %>% 
+  # tab_options(table.align = "center",
+  #           row_group.font.weight = "bold",
+  #           table.width = 600,
+  #           table.font.size = 12,
+  #           data_row.padding = px(1)) %>% 
+  fmt_missing(
+  missing_text = "///"
+) %>% 
+  tab_caption(caption = md(glue("Cantidad, variación interanual y relaciones entre puestos de trabajo, pernoctaciones y establecimientos hoteleros y parahoteleros. Total país. Años 2012 - {anio_anuario}.")))
+
+#VARIABLES PARA TEXTO
+
+puestos_prom_ultimo <- tabla_datos$puestos_promedio_cantidad[dim(tabla_datos)[1]]/1000
+
+var_ia_puestos <- ((tabla_datos$puestos_promedio_cantidad[dim(tabla_datos)[1]]/tabla_datos$puestos_promedio_cantidad[dim(tabla_datos)[1]-1])-1)*100
+
+var_19_puestos <- ((tabla_datos$puestos_promedio_cantidad[dim(tabla_datos)[1]]/tabla_datos$puestos_promedio_cantidad[dim(tabla_datos)[1]-2])-1)*100
+
+pernoctes_PTH <- tabla_datos$pernoctes_puestos_cantidad[dim(tabla_datos)[1]]
+  
+PTH_establecimientos <- tabla_datos$puestos_establecimientos_cantidad[dim(tabla_datos)[1]]
+
+
+```
+
+
+
+
+### Estimación nacional
+
+En el año `r anio_anuario`, en el universo cubierto por la EOH, los PTH alcanzaban a `r format (puestos_prom_ultimo %>% round(1), decimal.mark=",", big.mark = ".")` miles, demostrando así `r ifelse(var_ia_puestos>0," un aumento","una caída")` interanual del `r format(var_ia_puestos %>% round(1),decimal.mark = ",",big.mark = ".")`%. Respecto a 2019 (prepandemia) se verificó `r ifelse(var_19_puestos>0,"un aumento","una caída")` del `r format((-1)*var_19_puestos %>% round(1),decimal.mark = ",",big.mark = ".")`%.
+
+La siguiente tabla aporta información completa para la serie 2012-`r anio_anuario`. De esta forma, se puede comprender la evolución y los cambios registrados en torno al empleo en el sector hotelero y parahotelero. Además de los puestos de trabajo, se presenta allí la cantidad y variación de pernoctes (plazas ocupadas) y de establecimientos, así como la relación entre estas variables y los PTH.
+
+
+```{r cuadro-1, fig.cap=glue()}
+tabla_1_1
+```
+
+
+
+```{r grafico-1-1, fig.cap=glue("Puestos de trabajo en hoteles y parahoteles, cantidad y var i.a. (%). Total país. Años 2012- {anio_anuario}.")}
+
+data_grafico_puestos <- base_eoh_total_procesada %>% 
+  select(anio,puestos_promedio) %>% 
+  mutate(variacion_puestos= round(((puestos_promedio/lag(puestos_promedio, n=1))-1)*100, 1)) %>% 
+  pivot_longer(cols = c("puestos_promedio","variacion_puestos"), names_to="indicador", values_to="n") %>% 
+  mutate(variacion_color=case_when(indicador=="variacion_puestos"& n > 0 ~ "positiva",
+                                   indicador=="variacion_puestos"& n < 0 ~ "negativa"),
+         etiqueta = factor(indicador, levels = c("puestos_promedio","variacion_puestos"),
+                           labels = c ("Puestos de trabajo promedio", "Var. i.a. (%)")),
+         ## Acá modifico el valor en el eje Y
+         n_modif= case_when(indicador == "variacion_puestos" & n > 10 ~ 12,
+                            indicador == "variacion_puestos" & n < -10 ~ -12,TRUE~n)) 
+  
+
+grafico_1_1 <- data_grafico_puestos %>% 
+  ggplot(aes(x=anio, y=n_modif))+
+  geom_hline(yintercept = 0, color = "black", alpha = 0.6)+
+  geom_line(data = filter(data_grafico_puestos, indicador == "puestos_promedio"), aes(group = ""), 
+            size = 1,  alpha = .5, color =  dnmye_colores(6)) +
+  geom_point(data = filter(data_grafico_puestos, indicador == "puestos_promedio"),
+             size = 1.1, color = dnmye_colores(6)) +
+  geom_col(data = filter(data_grafico_puestos, indicador == "variacion_puestos" & !is.na(n_modif)),
+           aes(fill = variacion_color))+
+  scale_fill_manual(values = c("negativa" = dnmye_colores(1), 
+                               "positiva" = dnmye_colores(5))) +
+  geom_text(data = filter(data_grafico_puestos, (indicador == "variacion_puestos" & !is.na(n_modif))),
+            aes(x = anio, y = n_modif, label = paste0(format(round(n,1),big.mark=".",decimal.mark=","), "%"), colour = variacion_color),
+            size = 3,  
+            fontface = "bold",
+            vjust = -1.1,
+            ) +
+  geom_text(data = filter(data_grafico_puestos,(indicador == "puestos_promedio" & anio == anio_anuario)),
+            aes(x = anio, y = n, label = paste0( format(round(n,0),big.mark=".",decimal.mark=","), " puestos")),
+            color = dnmye_colores(1),
+            size = 3,  
+            fontface = "bold",
+            vjust = -0.25,
+            )+
+  #corte de barras ad hoc
+  ggpattern::geom_crossbar_pattern(data = filter(data_grafico_puestos, n_modif == 12), aes(ymin = 11, ymax = 11.5), 
+                                    width = 0.9, 
+                                   size = 0.1,
+                                   fill = 'white',
+                                   colour = dnmye_colores(5),
+                                    pattern_fill    = 'black',
+                                    pattern_colour  = dnmye_colores(5),
+                                   pattern_spacing = 0.03)+
+  ggpattern::geom_crossbar_pattern(data = filter(data_grafico_puestos, n_modif == -12), aes(ymin = -11, ymax = -11.5), 
+                                    width = 0.9, 
+                                   size = 0.1,
+                                   fill = 'white',
+                                    colour = dnmye_colores(1),
+                                    #pattern_fill    = 'black',
+                                    pattern_colour  = dnmye_colores(1),
+                                   pattern_spacing = 0.03)+
+  scale_colour_manual(values = c("positiva" = "black",
+                                 "negativa" = "white")) +
+  scale_x_discrete(limits = c(2012:2021))+
+  scale_y_continuous(labels = scales::number_format(big.mark = "."))+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  facet_grid(facets = "etiqueta", scale="free")+
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       x = "", y = "")
+
+grafico_1_1
+
+```
+
+```{r grafico-1-2, fig.cap=glue("Variación interanual de los puestos de trabajo, los pernoctes y los establecimientos hoteleros y parahoteleros. Total país. Años 2012-{anio_anuario}.")}
+
+data_grafico_variaciones <- base_eoh_total_procesada %>% 
+  mutate(variacion_puestos= round(((puestos_promedio/lag(puestos_promedio, n=1))-1)*100, 1),
+         variacion_pernoctes= round(((pernoctes/lag(pernoctes, n=1))-1)*100, 1),
+         variacion_establecimientos=round(((establecimientos/lag(establecimientos, n=1))-1)*100, 1)) %>% 
+  pivot_longer(cols = c("variacion_puestos", "variacion_pernoctes","variacion_establecimientos"), names_to="indicador", values_to="n") %>%  
+  mutate(indicador = case_when(indicador == "variacion_puestos"~"Var. i.a. (%) Puestos de trabajo",
+                            indicador == "variacion_pernoctes"~"Var. i.a. (%) Pernoctes",
+                            indicador == "variacion_establecimientos"~"Var. i.a. (%) Establecimientos"))
+
+grafico_1_2 <- data_grafico_variaciones %>% 
+  ggplot(aes(x=anio, y=n)) +
+  geom_col(aes(fill=indicador),
+           position = "dodge")+
+  geom_text(data = filter(data_grafico_variaciones, (anio == anio_anuario)),
+            aes(label = paste0(format(round(n,1),big.mark=".",decimal.mark=","), "%"), group= indicador),
+            size = 2.5,  
+            fontface = "bold",
+            vjust = -1,
+            position = position_dodge(width = 1),
+            #family = "Encode Sans"
+            )+
+  scale_fill_dnmye()+
+  coord_cartesian(clip="off")+
+  scale_x_discrete(limits = c(2013:2021))+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"),
+    legend.title=element_blank(),
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 10),
+    axis.title.y = element_text(size = 8),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "bottom",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       color="",
+       x = "", y = "Variación interanual (%)")
+  
+  
+grafico_1_2
+
+```
+
+La productividad del empleo puede verse reflejada en la relación entre pernoctaciones y PTH. A partir de ello, en el año `r anio_anuario` se contabilizaron `r format (pernoctes_PTH %>% round(0), decimal.mark=",", big.mark = ".")` pernoctes por cada PTH. 
+
+Por otro lado, la relación entre PTH y establecimientos permite aproximarse al tamaño de la unidad económica, considerando el promedio de PTH por cada hotel. Para el año `r anio_anuario` esta relación fue de `r format (PTH_establecimientos %>% round(1), decimal.mark=",", big.mark = ".")` PTH por establecimiento.
+
+```{r grafico-1-3, fig.cap=glue("Relación pernoctes/puestos de trabajo y puestos de trabajo/establecimientos hoteleros y parahoteleros. Total país. Años 2012-{anio_anuario}.")}
+
+data_grafico_relaciones <- base_eoh_total_procesada %>% 
+  mutate(pernoctes_puestos=pernoctes/puestos_promedio,
+         puestos_establecimientos=puestos_promedio/establecimientos,
+         pernoctes=pernoctes/1000) %>% 
+  pivot_longer(cols = c(pernoctes_puestos, puestos_establecimientos), names_to = "indicador", values_to = "n") %>% 
+  mutate(indicador=case_when(indicador== "pernoctes_puestos" ~"Pernoctes/PTH",
+                             indicador== "puestos_establecimientos" ~ "PTH/Establecimientos"))
+
+grafico_1_3_1 <- data_grafico_relaciones %>% 
+  ggplot(aes(x=anio, y=n)) +
+  geom_col(fill= dnmye_colores(1))+
+  geom_text(aes(label=format(round(n,1),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 3,  
+            fontface = "bold",
+            vjust = -.5,
+            )+
+  facet_wrap(~indicador, scales = "free_y", ncol = 1)+
+  scale_color_dnmye()+
+  coord_cartesian(clip="off")+
+  scale_x_discrete(limits = c(2012:2021))+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 10),
+    axis.title.y = element_text(size = 6),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       color="",
+       x = "", y = "")
+
+
+grafico_1_3_1
+
+```
+
+
+```{r}
+
+data_grafico_promedio <- base_eoh_total %>%
+  group_by(anio) %>% 
+  mutate(max=max(prom_puestos),
+            min=min(prom_puestos),
+         dif=(max-min)) %>% 
+  filter(prom_puestos==max | prom_puestos==min) %>% 
+  ungroup() %>% 
+  mutate(nombre_mes= lubridate::month(x = mes, label = TRUE,abbr = FALSE))
+  
+
+grafico_1_4 <- ggplot()+
+  geom_line(data=base_eoh_total_procesada, aes(x=anio, y=puestos_promedio), color=dnmye_colores(5))+
+  geom_point(data=base_eoh_total_procesada, aes(x=anio, y=puestos_promedio), color=dnmye_colores(5))+
+  geom_point(data=data_grafico_promedio, aes(x=anio, y=prom_puestos), color=dnmye_colores(1))+
+  geom_label(data = data_grafico_promedio, aes(x=anio, y=prom_puestos, label= nombre_mes, vjust= ifelse(prom_puestos==min, 1.4, -.3)),
+             #position = position_stack(vjust = .15),
+             color = dnmye_colores(1),
+             )+
+    geom_text(data = base_eoh_total_procesada,
+            aes(x = anio, y = puestos_promedio, label = format(round(puestos_promedio,0),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(5),
+            size = 3,  
+            fontface = "bold",
+            vjust = -0.8,)+
+  coord_cartesian(clip="off")+
+  #scale_y_continuous(limits = c(0, 8000))+
+  scale_x_continuous(breaks = c(2012:2021))+
+  scale_y_continuous(labels = scales::number_format(big.mark = "."))+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0, vjust = -5),
+    axis.text.y   = element_text(size = 10),
+    axis.title.y = element_text(size = 6),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       color="",
+       x = "", y = "")
+
+#VARIABLES PARA TEXTO
+
+PTH_mes_max <- as.character(data_grafico_promedio$nombre_mes[dim(data_grafico_promedio)[1]])
+
+PTH_mes_min <- as.character(data_grafico_promedio$nombre_mes[dim(data_grafico_promedio)[1]-1])
+
+PTH_dif <- (data_grafico_promedio$dif[dim(data_grafico_promedio)[1]])/1000
+
+
+```
+
+La estacionalidad es un rasgo característico del turismo y la misma repercute en el empleo en hoteles. En el siguiente gráfico puede observarse que, para el `r anio_anuario`, la diferencia de PTH entre el mes que registra el valor mínimo (`r PTH_mes_min`)  y el máximo (`r PTH_mes_max`) fue de `r format (PTH_dif %>% round(1), decimal.mark=",", big.mark = ".")` mil puestos de trabajo. 
+
+```{r grafico-1-4, fig.cap=glue("Promedio de puestos de trabajo en hoteles y parahoteles por año y meses con mayor y menor cantidad de puestos de trabajo.Total país. Años 2012-{anio_anuario}.")}
+
+grafico_1_4
+
+```
+
+```{r}
+
+data_grafico_mensual <- base_eoh_total %>% 
+  filter(anio==anio_anuario) %>% 
+  mutate(pernoctes_puestos=total_pernoctes/prom_puestos,
+         pernoctes=total_pernoctes/1000,
+         puestos=  prom_puestos/1000) %>% 
+  pivot_longer(cols = c(puestos,pernoctes,pernoctes_puestos), names_to = "indicador", values_to = "n") %>% 
+  mutate(indicador=case_when(indicador== "puestos" ~"Cantidad de puestos de trabajo (en miles)",
+                             indicador== "pernoctes" ~ "Pernoctes hoteleros y parahoteleros (en miles)",
+                             indicador== "pernoctes_puestos" ~"Relación pernoctes y puestos de trabajo")) %>% 
+  mutate(nombre_mes= lubridate::month(x = mes, label = TRUE,abbr = TRUE))
+
+grafico_1_5 <- data_grafico_mensual %>% 
+  ggplot(aes(x=nombre_mes, y=n))+
+  geom_col(position = "dodge",
+           fill=dnmye_colores(5))+
+  geom_text(aes(label=format(round(n,1),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(5),
+            size = 2.5,  
+            fontface = "bold",
+            vjust = -.5,
+            )+
+  facet_wrap(~indicador, scales = "free_y",ncol = 1)+
+  coord_cartesian(clip="off")+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0, vjust = -5),
+    axis.text.y   = element_text(size = 10),
+    axis.title.y = element_text(size = 6),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       color="",
+       x = "", y = "")
+  
+```
+
+Considerando los datos del año `r anio_anuario` en el siguiente gráfico puede observarse que si bien existe una clara relación entre pernoctes y PTH (los meses de mayor demanda suelen ser los de mayor cantidad de empleo, y viceversa) la variabilidad estacional de los pernoctes es profundamente más marcada que la de los PTH.
+
+```{r grafico-1-5, fig.cap=glue("Cantidad de puestos de trabajo, pernoctes hoteleros y parahoteleros, relación pernoctes/puestos de trabajo por mes.Total país. Año {anio_anuario}.")}
+
+grafico_1_5
+```
+
+
+### Estimación regional
+```{r}
+grafico_2_1_datos <- base_eoh_region %>%
+  rename(puestos_promedio= "prom_puestos", 
+         pernoctes= "total_pernoctes",
+         establecimientos= "prom_establecimientos") %>% 
+  filter(anio==anio_anuario) %>%   
+  mutate(part_puestos = (puestos_promedio/sum(puestos_promedio)))
+
+grafico_2_1 <- grafico_2_1_datos %>% 
+  ggplot(aes(x=fct_reorder(region,puestos_promedio), y=puestos_promedio))+
+  geom_col(fill= dnmye_colores(1))+
+  geom_label(aes(label= scales::label_percent(decimal.mark = ",", accuracy = 0.1)(part_puestos)),
+             position = position_stack(vjust = .5),
+             #color = dnmye_colores(1),
+             )+
+  geom_text(aes(label=format(round(puestos_promedio,0),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 3,  
+            fontface = "bold",
+            vjust = -0.25,
+            )+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       x = "", y = "")
+
+#VARIABLES PARA TEXTO
+
+region_max_PTH <- grafico_2_1_datos %>% arrange(-puestos_promedio) %>% slice(1) %>% pull(region)
+
+cant_region_max_PTH <- grafico_2_1_datos %>% arrange(-puestos_promedio) %>% slice(1) %>% pull(puestos_promedio)
+
+porc_region_max_PTH <- grafico_2_1_datos %>% arrange(-puestos_promedio) %>% slice(1) %>% pull(part_puestos)*100
+```
+En el año `r anio_anuario`, la mayor cantidad de PTH, contabilizados en el universo de establecimientos hoteleros y parahoteleros cubierto por la EOH, se ubicó en la región de `r region_max_PTH` con un total de `r format (cant_region_max_PTH %>% round(0), decimal.mark=",", big.mark = ".")` puestos. Esta región representó el  `r format (porc_region_max_PTH %>% round(0), decimal.mark=",", big.mark = ".")`% del empleo total. 
+
+Por su parte, las variaciones interanuales en la cantidad de PTH de las regiones muestran variabilidad en la serie 2012-`r anio_anuario`. Para este último año, la variación fue positiva en todas las regiones. 
+
+```{r grafico-2-1, fig.cap=glue("Cantidad y distribución porcentual de los puestos de trabajo en hoteles y parahoteles por región. Total país. Año {anio_anuario}.")}
+grafico_2_1
+
+```
+
+```{r grafico-2-2, fig.cap="Variaciones de los puestos de trabajo en hoteles y parahoteles por región. Variación interanual (celeste), variación prepandemia 2019 (gris) y variación con año 2012 (derecha). Total país."}
+#OPCION ALTERNATIVA PARA EL GRAFICO 8.1.7 (original anuario 2015). 
+
+# grafico_2_2_datos <- base_eoh_region %>%
+#   rename(puestos_promedio= "prom_puestos", 
+#          pernoctes= "total_pernoctes",
+#          establecimientos= "prom_establecimientos") %>% 
+#   mutate(var_ia=puestos_promedio/lag(puestos_promedio,7)-1,
+#          var_19=puestos_promedio/lag(puestos_promedio,14)-1,
+#          var_12=puestos_promedio/lag(puestos_promedio,63)-1) %>% 
+#   pivot_longer(cols = c(var_ia, var_12, var_19), names_to = "period", values_to = "n") %>% 
+#   mutate(resultado = case_when(n > 0 & grepl('var_ia$', period) ~ "positivo",
+#                                n < 0 & grepl('var_ia$', period) ~ "negativo",
+#                                grepl('var_19$', period) ~ "var_19")) %>% 
+#   filter(anio==2021)
+# 
+# grafico_2_2_v1 <- grafico_2_2_datos %>% 
+#   ggplot(aes(x = region, y = n, fill = resultado)) +
+#   geom_col(data= grafico_2_2_datos %>% filter(period !="var_12"),
+#            aes(y=n), width = 0.7, position = "dodge") +
+#   geom_text(data= grafico_2_2_datos %>% filter(period !="var_12"),
+#             aes(label = scales::label_percent(decimal.mark = ",", accuracy = 0.1)(n)),
+#             size = 3, 
+#             hjust = 1.1,
+#             #family = "Encode Sans",
+#             position = position_dodge(width = 0.9)) +
+#   geom_hline(yintercept = 0, size = 0.1) +
+#   geom_label(data = filter(grafico_2_2_datos, period=="var_12"),
+#              aes(y= 1.1, label= scales::label_percent(decimal.mark = ",", accuracy = 0.1)(n)),
+#              #position = position_stack(vjust = .5),
+#              color = "black",
+#              #family = "Encode Sans"
+#              )+
+#   scale_fill_manual(values = c("negativo" = dnmye_colores(1), 
+#                                "positivo" = dnmye_colores(5),
+#                                "var_19" = "darkgrey"
+#   )) +
+#   #ylim(-100,850) +
+#   #ylim(-100, 850) +
+#   coord_flip(clip = "off") +
+#   theme_minimal() +
+#   theme(
+#     #text = element_text(family = "Encode Sans"), 
+#     plot.title    = element_text(size = 12),
+#     plot.subtitle = element_markdown(size = 10, face = "bold"),
+#     plot.caption  = element_markdown(size = 8),
+#     axis.text.x   = element_text(size = 8),
+#     axis.text.y   = element_markdown(size = 8),
+#     panel.grid.major.x = element_blank(),
+#     panel.grid.minor.x = element_blank(),
+#     panel.grid.major.y = element_line( size = .1),
+#     legend.position = "none",
+#     strip.placement = "outside",
+#     strip.text.y = element_text(size = 8),
+#     strip.text.y.right = element_text(angle = 0,size=7)
+#   )+
+#   labs(caption = "**Fuente:**DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+#        x = "", y = "") 
+# 
+# grafico_2_2_v1
+```
+
+
+```{r grafico-2-2b, fig.cap=glue("Variación interanual de los puestos de trabajo en hoteles y parahoteles por región. Total país. Años 2012-{anio_anuario}.")}
+
+#OPCION ALTERNATIVA 2 PARA EL GRAFICO 8.1.7 (original anuario 2015). 
+
+grafico_2_2_v2_datos <- base_eoh_region %>%
+  rename(puestos_promedio= "prom_puestos", 
+         pernoctes= "total_pernoctes",
+         establecimientos= "prom_establecimientos") %>% 
+  mutate(var_ia=(puestos_promedio/lag(puestos_promedio,7)-1)*100)
+
+grafico_2_2_v2 <- grafico_2_2_v2_datos %>% 
+  ggplot(aes(x=anio, y=var_ia))+
+  geom_line(color=dnmye_colores(1))+
+  geom_point(color=dnmye_colores(1))+
+  geom_text(data=filter(grafico_2_2_v2_datos, anio %in% c(2021,2019,2017,2015,2013)),
+            aes(label=paste0(format(round(var_ia,2),decimal.mark=","),"%")),
+            color = dnmye_colores(1),
+            size = 2.5,  
+            fontface = "bold",
+            vjust = -.7,
+            )+
+  scale_x_continuous(breaks = c(2012:2021))+
+  scale_y_continuous(labels = scales::percent_format(scale = 1))+
+  facet_wrap(~region)+ #scales = "free_y")+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 6,angle = 45),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       x = "", y = "")
+  
+  
+grafico_2_2_v2
+
+```
+
+En la tabla a continuación se presenta información correspondiente al año `r anio_anuario` sobre PTH, pernoctes y establecimientos por región, indicando la contribución de cada una de las regiones al total nacional y las relaciones pernoctes-PTH y PTH-establecimientos de cada una de estas. 
+
+```{r}
+
+tabla2_datos <- base_eoh_region %>%
+  rename(puestos_promedio= "prom_puestos", 
+         pernoctes= "total_pernoctes",
+         establecimientos= "prom_establecimientos") %>% 
+  filter(anio==anio_anuario) %>% 
+  mutate(part_puestos = puestos_promedio/sum(puestos_promedio[region != "Total pais"]),
+         part_pernoctes=pernoctes/sum(pernoctes[region != "Total pais"]),
+         part_establecimientos=establecimientos/sum(establecimientos[region != "Total pais"]),
+         pernoctes_puestos=pernoctes/puestos_promedio,
+         puestos_establecimientos=puestos_promedio/establecimientos,
+         pernoctes=pernoctes/1000) %>% 
+  select(region, puestos_promedio, part_puestos, pernoctes, part_pernoctes, pernoctes_puestos, establecimientos, part_establecimientos, puestos_establecimientos) %>% 
+  mutate(region = ifelse(region == "Total pais","Total país",region))
+
+  
+tabla_2_1 <- tabla2_datos %>%
+  gt(rowname_col = "region") %>% 
+  cols_label(
+    puestos_promedio           = md("**Cantidad promedio**"),
+    part_puestos               = md("**Participación en el total (%)**"),
+    pernoctes                  = md("**En miles**"),
+    part_pernoctes             = md("**Participación en el total (%)**"),
+    pernoctes_puestos          = md("**Cantidad**"),
+    establecimientos           = md("**Cantidad**"),
+    part_establecimientos      = md("**Participación en el total (%)**"),
+    puestos_establecimientos   = md("**Cantidad**")) %>% 
+  fmt_number(columns = c(2,4,7), decimals = 0, sep_mark = ".", dec_mark = ",") %>% 
+  fmt_number(columns = c(6,9), decimals = 1, sep_mark = ".", dec_mark = ",") %>%
+  fmt_percent(columns = c(3,5,8), decimals = 1, dec_mark = ",") %>% 
+  cols_align(
+    align = "center",
+    columns = vars(puestos_promedio,
+    part_puestos,
+    pernoctes,
+    part_pernoctes,
+    pernoctes_puestos,
+    establecimientos,
+    part_establecimientos,
+    puestos_establecimientos)   
+    )  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans")
+    )
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente:** DNMyE en base a Encuesta de Ocupación Hotelera")
+  ) %>%
+  ## AGRUPAMIENTO DE COLUMNAS POR VARIABLE DE INTERES
+  tab_spanner(
+    label = md("**PUESTOS DE TRABAJO**"),
+    columns = vars(puestos_promedio,
+                   part_puestos)
+  ) %>%
+  tab_spanner(
+    label = md("**PERNOCTES**"),
+    columns = vars(pernoctes,
+                   part_pernoctes)
+  ) %>%
+  tab_spanner(
+    label = md("**Pernoctes/Puestos de trabajo**"),
+    columns = vars(pernoctes_puestos)
+  )  %>%
+  tab_spanner(
+    label = md("**ESTABLECIMIENTOS**"),
+    columns = vars(establecimientos,
+                   part_establecimientos)
+  ) %>%
+  tab_spanner(
+    label = md("**Puestos de trabajo/establecimientos**"),
+    columns = vars(puestos_establecimientos)
+  ) %>% 
+  tab_stubhead(label = md("**REGIÓN**")) %>% 
+  # tab_options(table.align = "center",
+  #           row_group.font.weight = "bold",
+  #           table.width = 600,
+  #           table.font.size = 12,
+  #           data_row.padding = px(1)
+  # ) %>% 
+  tab_caption(caption = md(glue("Cantidad, variación interanual y relaciones entre puestos de trabajo, pernoctaciones y establecimientos hoteleros y parahoteleros por región. Total país. Año {anio_anuario}")))
+
+
+```
+
+```{r cuadro-2-1, fig.cap=glue()}
+
+tabla_2_1
+
+```
+
+```{r grafico-2-3, fig.cap=glue("Relación entre pernoctaciones y puestos de trabajo en hoteles y parahoteles por región y año. Total país. Años 2012-{anio_anuario}.")}
+
+datos_grafico_relaciones_region <- base_eoh_region %>% 
+  mutate(pernoctes_puestos=total_pernoctes/prom_puestos,
+         puestos_establecimientos=prom_puestos/prom_establecimientos)
+
+grafico_2_3 <- datos_grafico_relaciones_region %>% 
+  ggplot(aes(x=anio, y=pernoctes_puestos))+
+  geom_col(fill=dnmye_colores(5))+
+  geom_text(aes (label=format (round (pernoctes_puestos,0), big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(5),
+            size = 2,  
+            fontface = "bold",
+            vjust = -.5,
+            )+
+  facet_wrap(~region)+#, scales = "free_y")+
+  scale_x_continuous(breaks = c(2012:2021))+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 6,angle = 45),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       x = "", y = "")
+  
+grafico_2_3
+
+```
+```{r grafico-2-4, fig.cap=glue("Relación entre puestos de trabajo y establecimientos hoteleros y parahoteleros por región y año. Total país. Años 2012-{anio_anuario}.")}
+
+grafico_2_4 <- datos_grafico_relaciones_region %>% 
+  ggplot(aes(x=anio, y=puestos_establecimientos))+
+  geom_col(fill=dnmye_colores(1))+
+  geom_text(aes (label=format (round (puestos_establecimientos,0), big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 2,  
+            fontface = "bold",
+            vjust = -.5,
+            )+
+  facet_wrap(~region)+#, scales = "free_y")+
+  scale_x_continuous(breaks = c(2012:2021))+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 6,angle = 45),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       x = "", y = "")
+  
+grafico_2_4
+```
+
+```{r}
+base_texto_grafico<- base_eoh_region %>% 
+  filter(anio==anio_anuario) %>% 
+  select(region, prom_puestos)
+
+data_grafico_region_2021 <- base_eoh_region_2021 %>% 
+  group_by(region) %>% 
+  mutate(max=max(prom_puestos),
+            min=min(prom_puestos)) %>% 
+  filter(prom_puestos==max | prom_puestos==min) %>% 
+  ungroup() %>% 
+  mutate(nombre_mes= lubridate::month(x = mes, label = TRUE,abbr = FALSE))
+
+grafico_2_5 <- ggplot()+
+  geom_errorbar(data=data_grafico_region_2021, 
+                aes(x=region, ymin=min, ymax=max), 
+                width=.2, color = dnmye_colores("gris oscuro")) +
+  geom_point(data=filter(base_eoh_region, anio==2021), aes(x=region, y=prom_puestos, group=""), 
+             color=dnmye_colores(5), size = 3)+
+  geom_text(data=filter(base_eoh_region, anio==2021), aes (x=region, y=prom_puestos, label=format (round (prom_puestos,0), big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(5),
+            size = 3,  
+            fontface = "bold",
+            hjust = -.5,
+            )+
+  geom_label(data = data_grafico_region_2021, aes(x=region, y=prom_puestos, label= nombre_mes, vjust= ifelse(prom_puestos==min, 1.4, -.3)),
+             #position = position_stack(vjust = .1),
+             color = dnmye_colores(1),
+             )+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  coord_cartesian(clip="off")+
+  #scale_x_continuous(breaks = c(2012:2021))+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0, vjust = -5),
+    axis.text.y   = element_text(size = 10),
+    axis.title.y = element_text(size = 6),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       color="",
+       x = "", y = "")
+
+
+
+#VARIABLES PARA TEXTO
+
+PTH_mes_max <- as.character(data_grafico_promedio$nombre_mes[dim(data_grafico_promedio)[1]])
+
+PTH_mes_min <- as.character(data_grafico_promedio$nombre_mes[dim(data_grafico_promedio)[1]-1])
+
+PTH_dif <- (data_grafico_promedio$dif[dim(data_grafico_promedio)[1]])/1000
+  
+
+```
+El gráfico a continuación demuestra que la estacionalidad en el volumen de PTH es heterogénea entre las regiones, tanto en su intensidad (Provincia de Buenos Aires, Patagonia y, en menor medida, Córdoba y CABA  son las que muestran mayor variabilidad, mientras que en las demás regiones la variación intraanual de PTH es baja) como en los meses que representan los picos máximos y mínimos. 
+
+```{r grafico-2-5, fig.cap=glue("Promedio de puestos de trabajo en hoteles y parahoteles y meses con mayor y menor cantidad de puestos de trabajo por región. Total país. Año {anio_anuario}.")}
+grafico_2_5
+```
+```{r}
+
+base_grafico_2_6_region <- base_eoh_region_2021 %>% 
+  group_by(anio,region) %>% 
+  mutate(coef_estac_PHT= sqrt(var(prom_puestos))/mean(prom_puestos),
+         coef_estac_pernoctes= sqrt(var(total_pernoctes))/mean(total_pernoctes)) %>% 
+  ungroup()
+
+
+base_grafico_2_6_total <- base_eoh_total %>% 
+  filter(anio==anio_anuario) %>% 
+  group_by(anio) %>% 
+  mutate(region="Total",
+         coef_estac_PHT= sqrt(var(prom_puestos))/mean(prom_puestos),
+         coef_estac_pernoctes= sqrt(var(total_pernoctes))/mean(total_pernoctes)) %>% 
+  ungroup() %>% 
+  relocate(region,.after = mes)
+
+grafico_2_6 <- bind_rows(base_grafico_2_6_region, base_grafico_2_6_total) %>% 
+  ggplot(aes(x=coef_estac_PHT, y=coef_estac_pernoctes)) +
+  geom_point(color=dnmye_colores(5), size = 2) +
+  geom_label(aes(label= region, vjust= -.4),
+             #position = position_stack(vjust = .1),
+             color = dnmye_colores(1),
+             label.size = 0.25)+
+  coord_cartesian(clip="off")+
+  scale_x_continuous(limits = c(0,.4))+
+  scale_y_continuous(limits = c(.3,.75))+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0, vjust = -5),
+    axis.text.y   = element_text(size = 10),
+    axis.title.y = element_text(size = 6),
+    axis.title.x = element_text(size = 6, vjust = 5),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos de la Encuesta de Ocupación Hotelera",
+       color="",
+       x = "Coeficiente de estacionalidad de PHT", y = "Coeficiente de estacionalidad de pernoctes")
+
+```
+Finalmente, el gráfico a continuación compara, a partir de un coeficiente construido como la razón 
+entre el desvío estándar y el promedio de la cantidades mensuales, la estacionalidad de los PTH y de los pernoctes, lo que permite constatar, por un lado, que en todos los casos la variabilidad estacional de los pernoctes es mayor a la variabilidad en el volumen del personal ocupado y, por otro lado, que a mayor estacionalidad de los pernoctes mayor es la probabilidad de encontrar variabilidad en el volumen de PTH. No obstante, aunque se trata de una tendencia clara, esta relación no es lineal: por ejemplo, CABA presenta una variabilidad estacional de sus pernoctes algo mayor a la región de Córdoba (que sólo es superada por la Provincia de Buenos Aires), pero en esta última la estacionalidad de los PTH es más variable que en la CABA.
+
+```{r grafico-2-6, fig.cap=glue("Coeficiente de estacionalidad de PHT y de pernoctes en hoteles y parahoteles por región. Total país. Año {anio_anuario}.")}
+
+grafico_2_6
+```
+
+
+## Puestos de trabajo registrados, empleo por género y empresas en ramas turísticas
+
+
+En esta última sección se analizan los puestos de trabajo registrados totales y por género, como así también las empresas correspondientes a las Ramas Características del Turismo (RCT) en el sector privado (formal) de la economía a partir de los datos abiertos publicados por el [Centro de Estudios para la Producción (CEP XXI)](https://datos.produccion.gob.ar/) en base al SIPA, para el período 2012-2021.
+
+La metodología de las series elaboradas por el CEP XXI se encuentra [aquí](https://datos.produccion.gob.ar/dataset/15211f62-04dc-42ed-acdd-ff2bbcaf4779/resource/0ee975c9-8241-4d29-9013-7e190644faad/download/metodologia-da.pdf).
+
+A partir del nivel de desagregación que permiten dichos datos, se seleccionaron 56 ramas de actividad a 6 dígitos de CLAE, agrupándolas en 5 categorías:
+
+Agencias de Viaje: 4 ramas.<br>
+Alojamiento: 5 ramas.<br>
+Gastronomía: 9 ramas.<br>
+Transporte: 12 ramas.<br>
+Otros Servicios Turísticos: 26 ramas.
+
+
+```{r}
+#INSUMOS
+empleo <- read_file_srv("/srv/DataDNMYE/empleo/puestos_6_digitos.csv")
+empleadores <- read_file_srv("/srv/DataDNMYE/empleo/empresas_6_digitos.csv")
+fecha_empresas <- max(empleadores$fecha)
+puestos.genero <- read_file_srv("/srv/DataDNMYE/empleo/puestos_genero_6_digitos.csv")
+fecha_genero  <- max(puestos.genero$fecha)
+
+ramas_turismo_6d <- read_file_srv("/srv/DataDNMYE/empleo/ramas turismo 6 D.xlsx") %>% 
+  filter(!COD_ACTIVIDAD_F883 %in% c(473000,681098,681099,780000,562091)) %>% 
+  pull(COD_ACTIVIDAD_F883)
+
+clae_diccionario <- read_file_srv("empleo/clae_diccionario.csv") %>% select(clae6,clae6_desc)
+
+```
+
+
+```{r}
+#PROCESO INSUMOS
+puestos <- empleo %>% 
+  left_join(clae_diccionario) %>% 
+  left_join(puestos.genero, by=c("clae6","fecha")) %>% 
+  left_join(empleadores,by=c("clae6","fecha")) %>% 
+  mutate(anio=substr(fecha, 1,4),
+         mes=substr(fecha,6,7),
+         rct = ifelse(clae6 %in% ramas_turismo_6d, "RCT","NO RCT"),
+         cat.rct = case_when(substr(clae6,1,3) %in% c(473,491,492,501,502,511,524,771) & rct == "RCT"~ "Transporte",
+                             substr(clae6,1,3) %in% c(551,552) & rct == "RCT"~ "Alojamiento",
+                             substr(clae6,1,3) %in% c(561,562) & rct == "RCT" ~ "Gastronomía",
+                             substr(clae6,1,3) == 791 & rct == "RCT"~ "Agencias de Viaje",
+                             substr(clae6,1,3) %in% c(591,592,681,780,854,900,910,920,931,939) & rct == "RCT"~ "Otros Servicios Turísticos",
+                             TRUE ~ "NO RCT"),
+         puestos = ifelse(puestos == -99,NA,puestos), #PONGO NA A LOS -99
+         empresas = ifelse(empresas == -99, NA,empresas),
+         puestos_mujeres = round(puestos * share_mujer,0),
+         puestos_varones = round(puestos * (1-share_mujer),0)) %>% 
+  filter(rct=="RCT")
+
+puestos_total_anual <- puestos %>% 
+  filter(anio>2011 & anio<2022) %>% 
+  group_by(anio, mes) %>% 
+  summarise(puestos_total_mes=sum(puestos, na.rm = TRUE),
+            empresas_total_mes=sum(empresas, na.rm = TRUE),
+            puestos_mujeres_mes=sum(puestos_mujeres, na.rm = TRUE),
+            puestos_varones_mes=sum(puestos_varones, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  group_by(anio) %>% 
+  summarise(puestos_total_anio=mean(puestos_total_mes),
+            empresas_total_anio=mean(empresas_total_mes),
+            puestos_mujeres_anio=mean(puestos_mujeres_mes),
+            puestos_varones_anio=mean(puestos_varones_mes)) %>% 
+  ungroup() %>% 
+  mutate(var_ia_puestos=puestos_total_anio/lag(puestos_total_anio,n=1)-1,
+         var_ia_empresas=puestos_total_anio/lag(puestos_total_anio,n=1)-1,
+         puestos_mujeres_porc=puestos_mujeres_anio/puestos_total_anio,
+         puestos_varones_porc=puestos_varones_anio/puestos_total_anio,
+         var_ia_mujeres_pp=(puestos_mujeres_porc-lag(puestos_mujeres_porc,n=1))*100,
+         var_ia_varones_pp=(puestos_varones_porc-lag(puestos_varones_porc,n=1))*100)
+
+puestos_total_mes <- puestos %>% 
+  filter(anio==anio_anuario) %>% 
+  group_by(fecha) %>% 
+  summarise(puestos_total_mes=sum(puestos, na.rm = TRUE),
+            empresas_total_mes=sum(empresas, na.rm = TRUE),
+            puestos_mujeres_mes=sum(puestos_mujeres, na.rm = TRUE),
+            puestos_varones_mes=sum(puestos_varones, na.rm = TRUE)) %>% 
+  ungroup() 
+
+puestos_categoria <- puestos %>% 
+  filter(anio>=2019 & anio<2022) %>% 
+  group_by(anio,mes,cat.rct) %>% 
+  summarise(puestos=sum(puestos, na.rm = TRUE),
+            empresas=sum(empresas, na.rm = TRUE),
+            puestos_mujeres=sum(puestos_mujeres, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  group_by(anio, cat.rct) %>% 
+  summarise(puestos_prom=mean(puestos),
+            empresas_prom=mean(empresas),
+            puestos_mujeres_prom= mean(puestos_mujeres)) %>% 
+  ungroup() %>% 
+  mutate(var_ia_puestos=puestos_prom/lag(puestos_prom,n=5)-1,
+         var_ia_empresas=empresas_prom/lag(empresas_prom,n=5)-1,
+         var_19_puestos=puestos_prom/lag(puestos_prom,n=10)-1,
+         var_19_empresas=empresas_prom/lag(empresas_prom,n=10)-1,
+         puestos_mujeres_porc=puestos_mujeres_prom/puestos_prom,
+         var_ia_mujeres_pp=(puestos_mujeres_porc-lag(puestos_mujeres_porc, n=5))*100,
+         var_19_mujeres_pp=(puestos_mujeres_porc-lag(puestos_mujeres_porc, n=10))*100)
+
+puestos_categoria_anio <- puestos %>% 
+  filter(anio>=2012 & anio<2022) %>% 
+  group_by(anio,mes,cat.rct) %>% 
+  summarise(puestos=sum(puestos, na.rm = TRUE),
+            empresas=sum(empresas, na.rm = TRUE),
+            puestos_mujeres=sum(puestos_mujeres, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  group_by(anio, cat.rct) %>% 
+  summarise(puestos_prom=mean(puestos),
+            empresas_prom=mean(empresas),
+            puestos_mujeres_prom= mean(puestos_mujeres)) %>% 
+  ungroup() %>% 
+  mutate(var_ia_puestos=puestos_prom/lag(puestos_prom,n=5)-1,
+         var_ia_empresas=empresas_prom/lag(empresas_prom,n=5)-1,
+         var_19_puestos=puestos_prom/lag(puestos_prom,n=10)-1,
+         var_19_empresas=empresas_prom/lag(empresas_prom,n=10)-1,
+         puestos_mujeres_porc=puestos_mujeres_prom/puestos_prom,
+         var_ia_mujeres_pp=(puestos_mujeres_porc-lag(puestos_mujeres_porc, n=5))*100,
+         var_19_mujeres_pp=(puestos_mujeres_porc-lag(puestos_mujeres_porc, n=10))*100)
+
+puestos_categoria_mes <- puestos %>% 
+  filter(anio==anio_anuario) %>% 
+  group_by(fecha,cat.rct) %>% 
+  summarise(puestos=sum(puestos, na.rm = TRUE),
+            empresas=sum(empresas, na.rm = TRUE),
+            puestos_mujeres=sum(puestos_mujeres, na.rm = TRUE)) %>% 
+  ungroup() 
+
+puestos_total <- puestos_categoria %>% 
+  group_by(anio) %>% 
+  summarise(puestos_prom=sum(puestos_prom, na.rm = TRUE),
+            empresas_prom=sum(empresas_prom, na.rm = TRUE),
+            puestos_mujeres_prom=sum(puestos_mujeres_prom, na.rm = TRUE),
+            puestos_mujeres_porc=puestos_mujeres_prom/puestos_prom) %>% 
+  ungroup() %>% 
+  mutate(var_ia_puestos=puestos_prom/lag(puestos_prom,n=1)-1,
+         var_ia_empresas=empresas_prom/lag(empresas_prom,n=1)-1,
+         var_19_puestos=puestos_prom/lag(puestos_prom,n=2)-1,
+         var_19_empresas=empresas_prom/lag(empresas_prom,n=2)-1,
+         puestos_mujeres_porc=puestos_mujeres_prom/puestos_prom,
+         var_ia_mujeres_pp=(puestos_mujeres_porc-lag(puestos_mujeres_porc, n=1))*100,
+         var_19_mujeres_pp=(puestos_mujeres_porc-lag(puestos_mujeres_porc, n=2))*100) %>% 
+  filter(anio==anio_anuario) %>% 
+  mutate(cat.rct="Total") 
+
+puestos_tot <- bind_rows(puestos_total,puestos_categoria) %>% 
+  filter(anio==anio_anuario) %>% 
+  relocate(cat.rct,.after = anio)
+```
+
+```{r}
+
+tabla_3_1 <-puestos_total_anual %>%
+  select(-c(puestos_mujeres_anio, puestos_varones_anio,puestos_varones_porc, var_ia_varones_pp))%>% 
+  gt(rowname_col = "anio") %>% 
+  cols_label(
+    puestos_total_anio      = md("**Cantidad promedio**"),
+    var_ia_puestos          = md("**Var i.a.**"),
+    empresas_total_anio     = md("**Cantidad promedio**"),
+    var_ia_empresas         = md("**Var i.a.**"),
+    puestos_mujeres_porc    = md ("**% mujeres**"),
+    var_ia_mujeres_pp       = md ("**Var i.a. (en p.p.)**"))%>% 
+  fmt_number(columns = c(2,3), decimals = 0, sep_mark = ".", dec_mark = ",") %>%
+  fmt_number(columns = 7, decimals = 1, sep_mark = ".", dec_mark = ",") %>%
+  fmt_percent(columns = c(4,5,6), decimals = 1, dec_mark = ",") %>% 
+  cols_align(
+    align = "center",
+    columns = vars(puestos_total_anio,
+    var_ia_puestos,
+    empresas_total_anio,
+    var_ia_empresas,
+    puestos_mujeres_porc,
+    var_ia_mujeres_pp)
+    )  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans")
+    )
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente:** DNMyE en base a datos del  Centro de Estudios para la Producción (CEP XXI)")
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_ia_puestos),
+      rows = var_ia_puestos < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_ia_puestos),
+      rows = var_ia_puestos >= 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_ia_empresas),
+      rows = var_ia_empresas < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_ia_empresas),
+      rows = var_ia_empresas >= 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars( var_ia_mujeres_pp),
+      rows =  var_ia_mujeres_pp < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars( var_ia_mujeres_pp),
+      rows =  var_ia_mujeres_pp >= 0)
+  ) %>%
+  ## AGRUPAMIENTO DE COLUMNAS POR VARIABLE DE INTERES
+  tab_spanner(
+    label = md("**PUESTOS DE TRABAJO**"),
+    columns = vars(puestos_total_anio,
+                   var_ia_puestos)
+  ) %>%
+  tab_spanner(
+    label = md("**EMPRESAS**"),
+    columns = vars(empresas_total_anio,
+                   var_ia_empresas)
+  ) %>%
+  tab_spanner(
+    label = md("**PUESTOS SEGÚN GENERO**"),
+    columns = vars(puestos_mujeres_porc,var_ia_mujeres_pp)
+  )  %>%
+  tab_stubhead(label = "") %>% 
+  # tab_options(table.align = "center",
+  #           row_group.font.weight = "bold",
+  #           table.width = 600,
+  #           table.font.size = 12,
+  #           data_row.padding = px(1)
+  # ) %>% 
+  fmt_missing(
+  missing_text = "///"
+) %>% 
+  tab_caption(caption = md(glue("Puestos de trabajo registrados, cantidad de empresas en ramas turísticas y puestos de trabajo según género.Total país. Años 2012-{anio_anuario}")))
+
+
+```
+
+```{r cuadro-3-1, fig.cap=glue()}
+
+tabla_3_1
+```
+
+```{r}
+grafico_3_1 <-puestos_total_anual %>% 
+  ggplot(aes(x=anio, y=puestos_total_anio))+
+  geom_col(fill= dnmye_colores(1))+
+  geom_text(aes(label=format(round(puestos_total_anio,0),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 3,  
+            fontface = "bold",
+            vjust = -.5,
+            )+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos del  Centro de Estudios para la Producción (CEP XXI)",
+       x = "", y = "")
+
+
+#VARIABLES PARA TEXTO
+
+puestos_total_anio <- puestos_total_anual$puestos_total_anio[dim(puestos_total_anual)[1]]
+
+var_puestos_total_anio <-(puestos_total_anual$puestos_total_anio[dim(puestos_total_anual)[1]]/puestos_total_anual$puestos_total_anio[dim(puestos_total_anual)[1]-1]-1)*100
+  
+```
+
+En el año `r anio_anuario` se contabilizaron, en promedio, `r format(puestos_total_anio %>% round(0),decimal.mark=",", big.mark = ".")` puestos de trabajo en ramas turísticas, es decir un `r var_puestos_total_anio %>% round(1)`% `r ifelse(var_puestos_total_anio>0," más","menos")` que el año anterior.
+
+
+```{r grafico-3-1, fig.cap=glue("Puestos de trabajo registrados en ramas turísticas. Total país. Años 2012-{anio_anuario}.")}
+grafico_3_1
+
+```
+Luego, puede observarse la variabilidad de los puestos durante los meses del año `r anio_anuario`, consecuencia de la estacionalidad en el empleo.
+
+```{r grafico-3-2, fig.cap=glue("Puestos de trabajo registrados en ramas turísticas. Total país. Año {anio_anuario}.")}
+
+grafico_3_2 <-puestos_total_mes %>% 
+  ggplot(aes(x=fecha, y=puestos_total_mes))+
+  geom_line(aes(group = ""),size = 1, linetype = 1, alpha = .3, color =  dnmye_colores("gris medio"))+
+  geom_point(color= dnmye_colores(1), size=3)+
+  geom_text(aes(label=format(round(puestos_total_mes,0),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 2.7,
+            fontface = "bold",
+            vjust = -3.5,
+            )+
+  coord_cartesian(clip="off")+
+  scale_x_date( date_breaks = "1 month", date_labels="%b")+
+  scale_y_continuous(limits = c(340000,400000), 
+                     labels = scales::number_format(big.mark="."))+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"),
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos del  Centro de Estudios para la Producción (CEP XXI)",
+       x = "", y = "")
+
+grafico_3_2
+
+```
+A continuación podrá visualizarse en la siguiente tabla la cantidad, variación interanual y variación vs 2019 (prepandemia) de los puestos de trabajo registrados, las empresas en ramas turísticas y los puestos de trabajo según género, agrupados en las categorías mencionadas al inicio de esta sección, para el año `r anio_anuario`.
+
+```{r}
+
+tabla_3_2 <- puestos_tot %>% 
+  select(-c(anio, puestos_mujeres_prom)) %>% 
+  gt(rowname_col = "cat.rct") %>% 
+  cols_label(
+    puestos_prom            = md("**Cantidad promedio**"),
+    var_ia_puestos          = md("**Var i.a.**"),
+    var_19_puestos          = md("**Var vs 2019**"),
+    empresas_prom           = md("**Cantidad promedio**"),
+    var_ia_empresas         = md("**Var i.a.**"),
+    var_19_empresas         = md("**Var vs 2019**"),
+    puestos_mujeres_porc    = md ("**% mujeres**"),
+    var_ia_mujeres_pp       = md ("**Var i.a. (en p.p.)**"),
+    var_19_mujeres_pp       = md ("**Var vs 2019 (en p.p.)**"))%>% 
+  fmt_number(columns = c(2,3), decimals = 0, sep_mark = ".", dec_mark = ",") %>%
+  fmt_number(columns = c(9,10), decimals = 1, sep_mark = ".", dec_mark = ",") %>%
+  fmt_percent(columns = c(4,5,6,7,8), decimals = 1, dec_mark = ",") %>% 
+  cols_align(
+    align = "center",
+    columns = vars(puestos_prom,
+    var_ia_puestos,
+    var_19_puestos,
+    empresas_prom,
+    var_ia_empresas,
+    var_19_empresas,
+    puestos_mujeres_porc,
+    var_ia_mujeres_pp,
+    var_19_mujeres_pp)
+    )  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans")
+    )
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente:** DNMyE en base a datos del  Centro de Estudios para la Producción (CEP XXI)")
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_ia_puestos),
+      rows = var_ia_puestos < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_ia_puestos),
+      rows = var_ia_puestos >= 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_ia_empresas),
+      rows = var_ia_empresas < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_ia_empresas),
+      rows = var_ia_empresas >= 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars( var_ia_mujeres_pp),
+      rows =  var_ia_mujeres_pp < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars( var_ia_mujeres_pp),
+      rows =  var_ia_mujeres_pp >= 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_19_puestos),
+      rows = var_19_puestos < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_19_puestos),
+      rows = var_19_puestos >= 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_19_empresas),
+      rows = var_19_empresas < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars(var_19_empresas),
+      rows = var_19_empresas >= 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = vars( var_19_mujeres_pp),
+      rows =  var_19_mujeres_pp < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = vars( var_19_mujeres_pp),
+      rows =  var_19_mujeres_pp >= 0)
+  ) %>%
+   tab_style(
+    style = list(
+      cell_fill(dnmye_colores("gris claro")),
+      cell_text(weight =  "bold")),
+    locations = cells_body(
+      rows = c(1))
+    ) %>% 
+  ## AGRUPAMIENTO DE COLUMNAS POR VARIABLE DE INTERES
+  tab_spanner(
+    label = md("**PUESTOS DE TRABAJO**"),
+    columns = vars(puestos_prom,
+                   var_ia_puestos,
+                   var_19_puestos)
+  ) %>%
+  tab_spanner(
+    label = md("**EMPRESAS**"),
+    columns = vars(empresas_prom,
+                   var_ia_empresas,
+                   var_19_empresas)
+  ) %>%
+  tab_spanner(
+    label = md("**PUESTOS SEGÚN GENERO**"),
+    columns = vars(puestos_mujeres_porc,
+                   var_ia_mujeres_pp,
+                   var_19_mujeres_pp)
+  )  %>%
+  tab_stubhead(label = "") %>% 
+  # tab_options(table.align = "center",
+  #           row_group.font.weight = "bold",
+  #           table.width = 600,
+  #           table.font.size = 12,
+  #           data_row.padding = px(1)
+  # ) %>% 
+  fmt_missing(
+  missing_text = "///"
+) %>% 
+  tab_caption(caption = md(glue("Puestos de trabajo registrados, cantidad de empresas en ramas turísticas y puestos de trabajo según género, agrupados en categorías. Total país. Año {anio_anuario}")))
+
+
+```
+
+```{r cuadro-3-2, fig.cap=glue()}
+
+tabla_3_2
+
+```
+
+
+
+```{r}
+grafico_3_3 <- puestos_categoria_anio %>%
+  ggplot(aes(x=anio, y=puestos_prom))+
+  geom_col(fill=dnmye_colores(1))+
+  geom_text(aes(label=format(round(puestos_prom,0),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 3,  
+            fontface = "bold",
+            vjust = -.5,
+            )+
+  facet_wrap(~cat.rct, scales = "free_y", ncol = 1)+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  scale_color_dnmye()+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    strip.text.x  = element_text(size = 8, face = "bold", vjust = 5),
+    panel.spacing.y = unit(0.5, "cm"),
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 6),
+    axis.title.y = element_text(size = 6),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos del  Centro de Estudios para la Producción (CEP XXI)",
+       color="",
+       x = "", y = "")
+
+#VARIABLES PARA TEXTO
+
+puestos_agencias <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(1) %>% pull(puestos_prom)
+puestos_alojamiento <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(2) %>% pull(puestos_prom)
+puestos_gastronomia <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(3) %>% pull(puestos_prom)
+puestos_otros <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(4) %>% pull(puestos_prom)
+puestos_transporte <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(5) %>% pull(puestos_prom)
+
+var_ia_puestos_agencias <- ((puestos_categoria_anio$puestos_prom[dim(puestos_categoria_anio)[1]-4]/puestos_categoria_anio$puestos_prom[dim(puestos_categoria_anio)[1]-9])-1)*100
+
+var_ia_puestos_alojamiento <- ((puestos_categoria_anio$puestos_prom[dim(puestos_categoria_anio)[1]-3]/puestos_categoria_anio$puestos_prom[dim(puestos_categoria_anio)[1]-8])-1)*100
+
+var_ia_puestos_gastronomia <- ((puestos_categoria_anio$puestos_prom[dim(puestos_categoria_anio)[1]-2]/puestos_categoria_anio$puestos_prom[dim(puestos_categoria_anio)[1]-7])-1)*100
+
+var_ia_puestos_otros <- ((puestos_categoria_anio$puestos_prom[dim(puestos_categoria_anio)[1]-1]/puestos_categoria_anio$puestos_prom[dim(puestos_categoria_anio)[1]-6])-1)*100
+
+var_ia_puestos_transporte <-((puestos_categoria_anio$puestos_prom[dim(puestos_categoria_anio)[1]]/puestos_categoria_anio$puestos_prom[dim(puestos_categoria_anio)[1]-5])-1)*100   
+  
+  
+```
+
+Para el año `r anio_anuario` los puestos en **Agencias de viaje** alcanzaron un promedio de `r format(puestos_agencias %>% round(0), decimal.mark= ",", big.mark = ".")` y tuvieron una variación interanual de `r format(var_ia_puestos_agencias %>% round(1), decimal.mark= ",", big.mark = ".")`%, mientras que en **Alojamiento** fueron de `r format(puestos_alojamiento %>% round(0), decimal.mark= ",", ,big.mark = ".")` (`r format(var_ia_puestos_alojamiento %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.) y en **Gastronomía** `r format(puestos_gastronomia %>% round(0), decimal.mark= ",", big.mark = ".")` (`r format(var_ia_puestos_gastronomia %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.). Por su parte, la categoría de **Otros servicios turísticos** contabilizó `r format(puestos_otros %>% round(0), decimal.mark= ",", big.mark = ".")` (`r format(var_ia_puestos_otros %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.). Por último, en **Transporte** se observó un promedio de `r format(puestos_transporte %>% round(0), decimal.mark= ",", big.mark = ".")` puestos (`r format(var_ia_puestos_transporte %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.).
+
+
+```{r grafico-3-3, fig.cap=glue("Puestos de trabajo registrados en ramas turísticas según categorías. Total país. Años 2012-{anio_anuario}.")}
+grafico_3_3
+```
+
+A partir del gráfico a continuación obsérvese la variabilidad de los puestos según categorías durante los meses del año `r anio_anuario`, consecuencia de la estacionalidad en el empleo.
+
+```{r grafico-3-4, fig.cap=glue("Puestos de trabajo registrados en ramas turísticas según categorías. Total país. Año {anio_anuario}.")}
+
+grafico_3_4 <- puestos_categoria_mes %>% 
+  ggplot(aes(x=fecha, y=puestos))+
+  geom_line(aes(group = ""),size = 1, linetype = 1, alpha = .3, color =  dnmye_colores("gris medio"))+
+  geom_point(color= dnmye_colores(1), size=2)+
+  geom_text(aes(label=format(round(puestos,0),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 2.3,
+            fontface = "bold",
+            vjust = -1.5,
+            )+
+  facet_wrap(~cat.rct, scales = "free_y", ncol = 1)+
+  scale_color_dnmye()+
+  scale_x_date( date_breaks = "1 month", date_labels="%b")+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    strip.text.x  = element_text(size = 8, face = "bold", vjust = 5),
+    panel.spacing.y = unit(0.5, "cm"),
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 6),
+    axis.title.y = element_text(size = 6),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos del  Centro de Estudios para la Producción (CEP XXI)",
+       color="",
+       x = "", y = "")
+  
+  
+
+grafico_3_4
+```
+```{r}
+grafico_3_5 <-puestos_total_anual %>% 
+  ggplot(aes(x=anio, y=puestos_mujeres_anio))+
+  geom_col(fill= dnmye_colores(1))+
+  geom_text(aes(label=format(round(puestos_mujeres_anio,0),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 3,  
+            fontface = "bold",
+            vjust = -.5,
+            )+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos del  Centro de Estudios para la Producción (CEP XXI)",
+       x = "", y = "")
+
+#VARIABLES PARA TEXTO
+puestos_mujeres <- puestos_total_anual$puestos_mujeres_anio[dim(puestos_total_anual)[1]]
+
+var_puestos_mujeres <-(puestos_total_anual$puestos_mujeres_anio[dim(puestos_total_anual)[1]]/puestos_total_anual$puestos_mujeres_anio[dim(puestos_total_anual)[1]-1]-1)*100
+```
+
+Respecto a los puestos de trabajo de mujeres, en el año `r anio_anuario` se contabilizaron, en promedio, `r format(puestos_mujeres %>% round(0),decimal.mark=",", big.mark = ".")` , es decir un `r var_puestos_mujeres %>% round(1)`% `r ifelse(var_puestos_mujeres>0," más","menos")` que el año anterior.
+
+
+
+```{r grafico-3-5, fig.cap=glue("Puestos de trabajo registrados de mujeres en ramas turísticas. Total país. Años 2012-{anio_anuario}.")}
+
+grafico_3_5
+
+```
+
+
+```{r}
+grafico_3_6 <-puestos_categoria_anio %>% 
+  ggplot(aes(x=anio, y=puestos_mujeres_prom))+
+  geom_line(aes(group = ""),size = 1, linetype = 1, alpha = .3, color =  dnmye_colores("gris medio"))+
+  geom_point(color= dnmye_colores(1), size=2)+
+  geom_text(aes(label=format(round(puestos_mujeres_prom,0),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 2.3,
+            fontface = "bold",
+            vjust = -1.5,
+            )+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  facet_wrap(~cat.rct, scales = "free_y", ncol = 1)+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    strip.text.x  = element_text(size = 8, face = "bold", vjust = 5),
+    panel.spacing.y = unit(0.5, "cm"),
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 6),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos del  Centro de Estudios para la Producción (CEP XXI)",
+       x = "", y = "")
+
+#VARIABLES PARA TEXTO
+
+puestos_mujeres_agencias <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(1) %>% pull(puestos_mujeres_prom)
+puestos_mujeres_alojamiento <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(2) %>% pull(puestos_mujeres_prom)
+puestos_mujeres_gastronomia <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(3) %>% pull(puestos_mujeres_prom)
+puestos_mujeres_otros <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(4) %>% pull(puestos_mujeres_prom)
+puestos_mujeres_transporte <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(5) %>% pull(puestos_mujeres_prom)
+
+var_ia_puestos_mujeres_agencias <- ((puestos_categoria_anio$puestos_mujeres_prom[dim(puestos_categoria_anio)[1]-4]/puestos_categoria_anio$puestos_mujeres_prom[dim(puestos_categoria_anio)[1]-9])-1)*100
+
+var_ia_puestos_mujeres_alojamiento <- ((puestos_categoria_anio$puestos_mujeres_prom[dim(puestos_categoria_anio)[1]-3]/puestos_categoria_anio$puestos_mujeres_prom[dim(puestos_categoria_anio)[1]-8])-1)*100
+
+var_ia_puestos_mujeres_gastronomia <- ((puestos_categoria_anio$puestos_mujeres_prom[dim(puestos_categoria_anio)[1]-2]/puestos_categoria_anio$puestos_mujeres_prom[dim(puestos_categoria_anio)[1]-7])-1)*100
+
+var_ia_puestos_mujeres_otros <- ((puestos_categoria_anio$puestos_mujeres_prom[dim(puestos_categoria_anio)[1]-1]/puestos_categoria_anio$puestos_mujeres_prom[dim(puestos_categoria_anio)[1]-6])-1)*100
+
+var_ia_puestos_mujeres_transporte <-((puestos_categoria_anio$puestos_mujeres_prom[dim(puestos_categoria_anio)[1]]/puestos_categoria_anio$puestos_mujeres_prom[dim(puestos_categoria_anio)[1]-5])-1)*100   
+
+```
+Para el año `r anio_anuario` los puestos de trabajo registrados de mujeres en **Agencias de viaje** alcanzaron un promedio de `r format(puestos_mujeres_agencias %>% round(0), decimal.mark= ",", big.mark = ".")` y tuvieron una variación interanual de `r format(var_ia_puestos_mujeres_agencias %>% round(1), decimal.mark= ",", big.mark = ".")`%, mientras que en **Alojamiento** fueron de `r format(puestos_mujeres_alojamiento %>% round(0), decimal.mark= ",", big.mark = ".")` (`r format(var_ia_puestos_mujeres_alojamiento %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.) y en **Gastronomía** `r format(puestos_mujeres_gastronomia %>% round(0), decimal.mark= ",", big.mark = ".")` (`r format(var_ia_puestos_mujeres_gastronomia %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.). Por su parte, la categoría de **Otros servicios turísticos** contabilizó `r format(puestos_mujeres_otros %>% round(0), decimal.mark= ",", big.mark = ".")` (`r format(var_ia_puestos_mujeres_otros %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.). Por último, en **Transporte** se observó un promedio de `r format(puestos_mujeres_transporte %>% round(0), decimal.mark= ",", big.mark = ".")` puestos de mujeres (`r format(var_ia_puestos_mujeres_transporte %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.).
+
+
+```{r grafico-3-6, fig.cap=glue("Puestos de trabajo registrados de mujeres en ramas turísticas según categorías. Total país. Años 2012-{anio_anuario}.")}
+grafico_3_6
+
+```
+
+ 
+
+```{r}
+grafico_3_7 <-puestos_total_anual %>% 
+  ggplot(aes(x=anio, y=empresas_total_anio))+
+  geom_col(fill= dnmye_colores(1))+
+  geom_text(aes(label=format(round(empresas_total_anio,0),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 3,  
+            fontface = "bold",
+            vjust = -.5,
+            )+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos del  Centro de Estudios para la Producción (CEP XXI)",
+       x = "", y = "")
+
+#VARIABLES PARA TEXTO
+puestos_empresas <- puestos_total_anual$empresas_total_anio[dim(puestos_total_anual)[1]]
+
+var_puestos_empresas <-(puestos_total_anual$empresas_total_anio[dim(puestos_total_anual)[1]]/puestos_total_anual$empresas_total_anio[dim(puestos_total_anual)[1]-1]-1)*100
+
+```
+En la siguiente sección se presentan las series relativas a ramas turísticas en términos de empleadores que declararon trabajadores.
+
+En el año `r anio_anuario` se contabilizaron, en promedio, `r format(puestos_empresas %>% round(0),decimal.mark=",", big.mark = ".")` empresas en ramas turísticas, es decir un `r var_puestos_empresas %>% round(1)`% `r ifelse(var_puestos_empresas>0," más","menos")` que el año anterior.
+
+
+```{r grafico-3-7, fig.cap=glue("Empresas en ramas turísticas. Total país. Años 2012-{anio_anuario}.")}
+grafico_3_7
+
+```
+
+
+```{r}
+grafico_3_8 <-puestos_categoria_anio %>% 
+  ggplot(aes(x=anio, y=empresas_prom))+
+  geom_line(aes(group = ""),size = 1, linetype = 1, alpha = .3, color =  dnmye_colores("gris medio"))+
+  geom_point(color= dnmye_colores(1), size=2)+
+  geom_text(aes(label=format(round(empresas_prom,0),big.mark=".",decimal.mark=",")),
+            color = dnmye_colores(1),
+            size = 2.3,
+            fontface = "bold",
+            vjust = -1.5,
+            )+
+  scale_y_continuous(labels = scales::number_format(big.mark="."))+
+  facet_wrap(~cat.rct, scales = "free_y", ncol = 1)+
+  coord_cartesian(clip="off")+
+  theme_minimal() +
+  theme(
+    strip.text.x  = element_text(size = 8, face = "bold", vjust = 5),
+    panel.spacing.y = unit(0.5, "cm"),
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_text(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 0),
+    axis.text.y   = element_text(size = 8),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  labs(caption = "**Fuente:** DNMyE en base a datos del  Centro de Estudios para la Producción (CEP XXI)",
+       x = "", y = "")
+
+#VARIABLES PARA TEXTO
+
+puestos_empresas_agencias <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(1) %>% pull(empresas_prom)
+puestos_empresas_alojamiento <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(2) %>% pull(empresas_prom)
+puestos_empresas_gastronomia <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(3) %>% pull(empresas_prom)
+puestos_empresas_otros <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(4) %>% pull(empresas_prom)
+puestos_empresas_transporte <- puestos_categoria_anio %>% filter(anio==anio_anuario) %>% slice(5) %>% pull(empresas_prom)
+
+var_ia_puestos_empresas_agencias <- ((puestos_categoria_anio$empresas_prom[dim(puestos_categoria_anio)[1]-4]/puestos_categoria_anio$empresas_prom[dim(puestos_categoria_anio)[1]-9])-1)*100
+
+var_ia_puestos_empresas_alojamiento <- ((puestos_categoria_anio$empresas_prom[dim(puestos_categoria_anio)[1]-3]/puestos_categoria_anio$empresas_prom[dim(puestos_categoria_anio)[1]-8])-1)*100
+
+var_ia_puestos_empresas_gastronomia <- ((puestos_categoria_anio$empresas_prom[dim(puestos_categoria_anio)[1]-2]/puestos_categoria_anio$empresas_prom[dim(puestos_categoria_anio)[1]-7])-1)*100
+
+var_ia_puestos_empresas_otros <- ((puestos_categoria_anio$empresas_prom[dim(puestos_categoria_anio)[1]-1]/puestos_categoria_anio$empresas_prom[dim(puestos_categoria_anio)[1]-6])-1)*100
+
+var_ia_puestos_empresas_transporte <-((puestos_categoria_anio$empresas_prom[dim(puestos_categoria_anio)[1]]/puestos_categoria_anio$empresas_prom[dim(puestos_categoria_anio)[1]-5])-1)*100 
+
+```
+Para el año `r anio_anuario` las empresas correspondientes a **Agencias de viaje** alcanzaron un promedio de `r format(puestos_empresas_agencias %>% round(0), decimal.mark= ",", big.mark = ".")` y tuvieron una variación interanual de `r format(var_ia_puestos_empresas_agencias %>% round(1), decimal.mark= ",", big.mark = ".")`%, mientras que en **Alojamiento** fueron de `r format(puestos_empresas_alojamiento %>% round(0), decimal.mark= ",", big.mark = ".")` (`r format(var_ia_puestos_empresas_alojamiento %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.) y en **Gastronomía** `r format(puestos_empresas_gastronomia %>% round(0), decimal.mark= ",", big.mark = ".")` (`r format(var_ia_puestos_empresas_gastronomia %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.). Por su parte, la categoría de **Otros servicios turísticos** contabilizó `r format(puestos_empresas_otros %>% round(0), decimal.mark= ",", big.mark = ".")` (`r format(var_ia_puestos_empresas_otros %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.). Por último, en **Transporte** se observó un promedio de `r format(puestos_empresas_transporte %>% round(0), decimal.mark= ",", big.mark = ".")` empresas (`r format(var_ia_puestos_empresas_transporte %>% round(1), decimal.mark= ",", big.mark = ".")`% var i.a.).
+
+```{r grafico-3-8, fig.cap=glue("Empresas en ramas turísticas según categorías. Total país. Años 2012-{anio_anuario}.")}
+grafico_3_8
+
+```
+
+## Recursos disponibles
+
+Los datos de empleo que se muestran en este capítulo forman parte del Sistema de Información Turística de la Argentina (SINTA) <https://www.yvera.tur.ar/sinta/>{target="_blank"} de la Dirección Nacional de Mercados y Estadística (DNMyE). Los mismos se presentan a través de distintos formatos:
+
+-   [Informes:]( https://www.yvera.tur.ar/sinta/informe/info/encuesta-de-ocupacion-hotelera-eoh){target="_blank"} la Encuesta de Ocupación Hotelera (EOH) es una publicación mensual de la evolución de la actividad hotelera del país desde una perspectiva de la oferta de quienes brindan el servicio de alojamiento.
+
+-   [Reporte:](https://tableros.yvera.tur.ar/eoh.html){target="_blank"} presenta los últimos datos disponibles de la Encuesta de Ocupación Hotelera (EOH). 
+
+-   [Reporte:](https://tableros.yvera.tur.ar/empleo.html){target="_blank"} presenta los datos últimos datos del empleo registrado en las ramas características del turismo a partir de datos abiertos publicados por el Centro de Estudios para la Producción (CEP XXI) en base al SIPA. 
+
+-   [Datos Abiertos:](https://datos.yvera.gob.ar/dataset?groups=sector-hotelero){target="_blank"} el portal de incluye un conjunto de datasets y recursos disponibles en diferentes niveles de desagregación y en variados formatos en caso de que se necesite un reprocesamiento de los mismos.
+
+
+

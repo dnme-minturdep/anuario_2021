@@ -1,0 +1,1058 @@
+---
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.topcaption=TRUE)
+
+library(gt)
+library(tidyverse) 
+library(lubridate) 
+library(extrafont) 
+library(hrbrthemes) 
+library(ggtext) 
+library(glue)
+library(readxl)
+library(comunicacion)
+
+
+#Defino fecha del Anuario
+Anio <- 2021
+```
+
+# **Parques Nacionales en Argentina** {#parques-nacionales}
+
+## Introducción
+
+Este capítulo presenta la evolución anual de las visitas de turistas a los Parques Nacionales en el país. A partir de información del Registro Nacional de Autorizaciones, Recaudaciones e Infracciones (RENARI) y de las Intendencias de las distintas áreas protegidas, la Administración de Parques Nacionales recopila y procesa los datos de los visitantes. Dicha información permite la clasificación de las visitas de los turistas en residentes en el país y no residentes en 36 Parques Nacionales en Argentina[^parque-patagonia].
+
+[^parque-patagonia]: A partir del 2021 se incorporó información de visitas del Parque Nacional Patagonia, en la provincia de Santa Cruz.
+
+##  Visitas a los Parques Nacionales
+
+
+
+```{r parques1, fig.cap=glue("Visitas a las áreas protegidas nacionales por condición de residencia. Serie histórica, en miles. Años 2008-{Anio}.")}
+
+#Importo datos
+parques_nacionales <- herramientas::read_file_srv("/srv/DataDNMYE/areas_protegidas/areas_protegidas_nacionales/pivot_pn.xlsx", sheet= 2) %>%
+  select(1:7) %>% 
+  #mutate(Mes = str_to_title(Mes)) %>% 
+  filter(parque_nacional != "nahuel huapi 3p" & parque_nacional != "los arrayanes") %>% 
+  left_join(., data.frame(Mes = c("Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"), month = c(1:12))) %>% 
+   filter(anio <= Anio) %>% 
+  mutate(    parque_nacional = case_when(parque_nacional == "los glaciares" ~ "Los Glaciares",
+                                parque_nacional == "nahuel huapi" ~ "Nahuel Huapi",
+                                parque_nacional == "ciervo de los pantanos" ~ "Ciervo de los Pantanos",
+                                parque_nacional == "el leoncito" ~ "El Leoncito",
+                                parque_nacional == "chaco" ~ "Chaco",
+                                parque_nacional == "el palmar" ~ "El Palmar",
+                                parque_nacional == "iguazu" ~ "Iguazú",
+                                parque_nacional == "rio pilcomayo" ~ "Río Pilcomayo",
+                                parque_nacional == "calilegua" ~ "Calilegua",
+                                parque_nacional == "el rey" ~ "El Rey",
+                                parque_nacional == "talampaya" ~ "Talampaya",
+                                parque_nacional == "laguna blanca" ~ "Laguna Blanca",
+                                parque_nacional == "los alerces" ~ "Los Alerces",
+                                parque_nacional == "san guillermo" ~ "San Guillermo",
+                                parque_nacional == "colonia benitez" ~ "Colonia Benítez",
+                                parque_nacional == "formosa" ~ "Formosa",
+                                parque_nacional == "mburucuya" ~ "Mburucuyá",
+                                parque_nacional == "aconquija" ~ "Aconquija",
+                                parque_nacional == "copo" ~ "Copo",
+                                parque_nacional == "laguna de los pozuelos" ~ "Laguna de los Pozuelos",
+                                parque_nacional == "bosques petrificados" ~ "Bosques Petrificados",
+                                parque_nacional == "lanin" ~ "Lanín",
+                                parque_nacional == "perito moreno" ~ "Perito Moreno",
+                                parque_nacional == "quebrada del condorito" ~ "Quebrada del Condorito",
+                                parque_nacional == "sierra de las quijadas" ~ "Sierra de las Quijadas",
+                                parque_nacional == "el impenetrable" ~ "El Impenetrable",
+                                parque_nacional == "ibera" ~ "Iberá",
+                                parque_nacional == "predelta" ~ "Predelta",
+                                parque_nacional == "baritu" ~ "Baritú",
+                                parque_nacional == "el nogalar de los toldos" ~ "Nogalar de los Toldos",
+                                parque_nacional == "los cardones" ~ "Los Cardones",
+                                parque_nacional == "lago puelo" ~ "Lago Puelo",
+                                parque_nacional == "lihue calel" ~ "Lihué Calel",
+                                parque_nacional == "monte leon" ~ "Monte León",
+                                parque_nacional == "patagonia" ~ "Patagonia",
+                                parque_nacional == "tierra del fuego" ~ "Tierra del Fuego",
+                                TRUE ~ parque_nacional))
+
+datos_grafico1 <- parques_nacionales %>% 
+  #mutate(fecha = ym(glue::glue("{anio}-{month}"))) %>% 
+  #filter(fecha <= Fecha) %>% 
+  group_by(residencia,anio) %>% 
+  summarise(visitantes = sum(visitantes,na.rm = T)) %>% ungroup() %>% 
+  mutate(visitantes = round(visitantes/1000, 0))
+
+#Calculo totales para agreagar al gráfico
+totales <- datos_grafico1 %>% group_by(anio) %>%
+  summarise(total = sum(visitantes)) %>% ungroup()
+
+#Gráfico 1 - evolución de visitas según residencia
+grafico1 <- datos_grafico1 %>% 
+  mutate(residencia = fct_relevel(str_to_sentence(residencia), c("Residentes","No residentes"))) %>% 
+  ggplot() +
+  geom_hline(yintercept = 0, color = "grey", size = 0.8) +
+  geom_area(aes(anio, visitantes, fill = residencia), alpha = 0.8, position = "dodge") +
+  geom_line(data = totales, mapping = aes(anio, total), size = 1, linetype = 1, colour = dnmye_colores("gris medio")) +
+  geom_point(data = totales, mapping = aes(anio, total), size = 3, colour = dnmye_colores("gris medio")) +
+  geom_text(data = totales, aes(x = anio, y = total, label = lbl_int(total)),
+            size = 2.5, vjust = -2) +
+  scale_fill_dnmye(reverse = T) +
+  scale_x_continuous(limits = c(2008,Anio), breaks = seq(2008,Anio)) +
+  scale_y_continuous(limits = c(0, max(totales$total)*1.1)) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        #text = element_text(family = "Encode Sans"),
+    #plot.caption  = element_text(size = 8, hjust = 0),
+    axis.title.y = element_blank(),
+    # axis.text.y = element_markdown(size = 7),
+    # axis.text.x = element_markdown(size = 8, angle = 45, hjust = 1),
+    panel.grid.minor.x = element_blank()
+   ) +
+  labs(x="", fill = "", y  = "en miles",
+       caption = "DNMyE en base a datos suministrados por la Dirección de Mercadeo de la Dirección Nacional de Uso \nPúblico de la Administración de Parques Nacionales (APN).")
+```
+
+
+
+```{r}
+datos_tabla1 <- parques_nacionales %>% 
+  mutate(residencia = str_replace(residencia, pattern = " ",replacement = "_")) %>% 
+  group_by(anio, residencia) %>% 
+  summarise(visitantes = round(sum(visitantes,na.rm = T),0)) %>%
+  ungroup(residencia) %>% 
+  mutate(total = round(sum(visitantes),0)) %>%
+  pivot_wider(names_from = residencia, values_from = visitantes) %>% 
+  ungroup() %>% 
+  mutate(var_ia_total =  round(total/lag(total, 1) -1 ,3),
+         var_ia_res = round(residentes/lag(residentes, 1) -1 ,3),
+         var_ia_nores = round(no_residentes/lag(no_residentes, 1) -1 ,3)
+  )
+vartext <- datos_tabla1 %>% 
+  filter(anio== Anio) %>% 
+  select(var_ia_res) %>% 
+  pull() 
+
+#ifelse(vartext > 0, "los turistas residentes presentaron un crecimiento del", " los turistas residentes cayeron un") 
+
+#vartext %>% 
+#  lbl_percent()
+
+
+vartextnores <- datos_tabla1 %>% 
+  filter(anio== Anio) %>% 
+  select(var_ia_nores) %>% 
+#para traer el valor, se usa el pull  
+  pull()  
+
+
+total <- datos_tabla1 %>% 
+  filter(anio==Anio) %>% 
+  select(var_ia_total) %>% 
+  pull()
+  
+totaltur <- datos_tabla1 %>% 
+  filter(anio==Anio) %>% 
+  select(total) %>% 
+  pull()/1000000 
+  
+
+#ifelse(total>0, "un incremento del", "tuvieron una caída del")
+
+#ifelse(vartextnores > 0, "registraron un crecimiento del", " disminuyeron un") 
+
+```
+
+En el año `r as.character(Anio)` se registraron `r lbl_decimal(totaltur, decimales=2) ` millones de visitas a los Parques Nacionales,`r ifelse(total>0,  "con un incremento del", "tuvieron una caída del")` `r lbl_percent(total)` respecto del `r as.character(Anio -1)`.
+
+```{r graficoparques1, fig.cap=glue("Visitas a las áreas protegidas nacionales por condición de residencia. Serie histórica, en miles. Años 2008-{Anio}.")}
+grafico1
+```
+
+
+```{r}
+tabla_1 <- datos_tabla1 %>%
+  select(anio, total, var_ia_total,
+                  residentes, var_ia_res,
+                  no_residentes, var_ia_nores) %>% 
+  gt() %>% 
+  cols_label(
+    anio = md("**Año**"),
+    total = md("**Total**"),
+    var_ia_total = md("**Var % i.a.**"),
+    residentes = md("**Residentes**"),
+    var_ia_res  = md("**Var % i.a.**") ,
+    no_residentes  = md("**No residentes**"),
+    var_ia_nores    = md("**Var % i.a.**")
+  ) %>% 
+  fmt_number(columns = c(2,4,6), decimals = 0, dec_mark = ",", sep_mark = ".") %>% 
+  fmt_percent(columns = c(3,5,7), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  cols_align(
+    align = "center",
+    columns = vars(total, var_ia_total,
+                   residentes, var_ia_res,
+                   no_residentes, var_ia_nores))  %>% 
+  opt_table_font(
+    font = "Encode Sans"
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a datos de la APN.")
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_ia_total),
+      rows = var_ia_total < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_ia_total),
+      rows = var_ia_total > 0)
+  )  %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_ia_res),
+      rows = var_ia_res < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_ia_res),
+      rows = var_ia_res > 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_ia_nores),
+      rows = var_ia_nores < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_ia_nores),
+      rows = var_ia_nores > 0)
+  ) %>%
+  tab_spanner(
+    label = md("**Visitas**"),
+    columns = c(total, var_ia_total,
+                   residentes, var_ia_res,
+                   no_residentes, var_ia_nores)) %>%
+  tab_options(table.align = "center",
+              row_group.font.weight = "bold",
+              container.height = 600,
+              container.overflow.y = T
+              #table.font.size = 14
+              ) %>% 
+  fmt_missing(columns = c("var_ia_total", "var_ia_res", "var_ia_nores"),
+              missing_text = "///") %>% 
+  tab_caption(caption = glue("Visitas a las áreas protegidas nacionales por tipo de visitante. Serie histórica. Años 2008-{Anio}."))
+
+```
+
+`r ifelse(vartext > 0, "Los turistas residentes presentaron un crecimiento del", " Los turistas residentes cayeron un" )  ` `r str_remove(lbl_percent(vartext),"-")`, mientras que los turistas no residentes `r ifelse(vartextnores > 0, "registraron un crecimiento del", " disminuyeron un") ` `r str_remove(lbl_percent(vartextnores),"-")`.
+
+
+```{r parques2}
+
+tabla_1 %>% 
+   tab_footnote(
+    footnote = "A partir del 16 de marzo los parques nacionales se cerraron a la visita debido al cese de actividades por causa de la crisis sanitaria del covid -19 (Resolución Nro 57 APN).",
+    locations = cells_body(columns = anio, rows = anio== 2020), placement = "right"
+  ) %>% 
+  tab_footnote(
+    footnote = "Entre el 22 y 30 de mayo los parques nacionales se cerraron a la visita en adhesión a las medidas nacionales (Decreto 334/2021); la reapertura a la visita se realizó progresivamente en los meses siguientes, de acuerdo a la evolución de la situación sanitaria de cada provincia.",
+   locations = cells_body(columns = anio, rows = anio== 2021), placement = "right"  )
+  
+```
+
+```{r}
+tabla_2 <- parques_nacionales %>% 
+  filter(anio >= Anio-2) %>% 
+  group_by(anio, region, parque_nacional, residencia) %>% 
+  summarise(visitantes = sum(visitantes, na.rm = T)) %>% 
+  ungroup()
+
+datos_regiones <- parques_nacionales %>%
+  filter(anio >= Anio-2) %>% 
+  group_by(anio, region, parque_nacional, residencia) %>% 
+  summarise(visitantes = round(sum(visitantes, na.rm = T),0)) %>% 
+  ungroup() %>% 
+  mutate(residencia = str_replace(residencia, pattern = " ",replacement = "_")) %>%
+  pivot_wider(names_from = residencia, values_from = visitantes) %>% 
+  mutate(total = residentes + no_residentes)
+
+total_region <- datos_regiones %>% 
+  group_by(anio, region) %>% 
+  summarise(total = sum(total), 
+            residentes= sum(residentes), 
+            no_residentes = sum(no_residentes)) %>% 
+  mutate(parque_nacional = "Total región") %>% 
+  ungroup()
+
+
+total_pais <- datos_regiones %>% 
+  group_by(anio) %>% 
+  summarise(total = sum(total), 
+            residentes= sum(residentes), 
+            no_residentes = sum(no_residentes)) %>% 
+  mutate(parque_nacional = "Total país",
+         region = "Total") %>% 
+  ungroup()
+
+
+tabla_regiones <- rbind(datos_regiones, total_region, total_pais) %>%
+  arrange(region, parque_nacional, anio) %>%
+  pivot_wider(names_from = anio, values_from = c(residentes, no_residentes, total)) %>% 
+  mutate(var_total = (total_2021/total_2020)-1,
+         var_res = (residentes_2021/residentes_2020)-1,
+         var_nores = (no_residentes_2021/no_residentes_2020)-1,
+         region = str_to_sentence(region)) 
+
+tabla_regiones[sapply(tabla_regiones, is.infinite)] <- NA
+
+```
+
+```{r}
+tabla_2 <- tabla_regiones %>% 
+  select(region, parque_nacional, total_2021, residentes_2021, no_residentes_2021,
+         var_total, var_res, var_nores,
+         total_2020, residentes_2020, no_residentes_2020,
+         total_2019, residentes_2019, no_residentes_2019) %>% 
+  group_by(region) %>% 
+  arrange(match(parque_nacional, c("Total país","Total región")), desc(total_2021)) %>% 
+  ungroup() %>% 
+  gt(groupname_col = "region") %>% 
+  cols_label(
+    region = md("**Región**"),
+    parque_nacional = md("**Parque Nacional**"),
+    total_2021 = md("**Total**"),
+    residentes_2021 = md("**Residentes**"),
+    no_residentes_2021 = md("**No residentes**"),
+    var_total = md("**Total**"),
+    var_res = md("**Residentes**"),
+    var_nores = md("**No residentes**"),
+    total_2020 = md("**Total**"),
+    residentes_2020 = md("**Residentes**"),
+    no_residentes_2020 = md("**No residentes**"),
+    total_2019 = md("**Total**"),
+    residentes_2019 = md("**Residentes**"),
+    no_residentes_2019 = md("**No residentes**")
+  ) %>% 
+  gt_theme_dnmye(var_total = region) %>% 
+   fmt_number(columns = c(3:5,9:14), decimals = 0, dec_mark = ",", sep_mark = ".") %>% 
+  fmt_percent(columns = c(6:8), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a datos de la APN.")
+  ) %>%
+  tab_spanner(
+    label = md("**2021**"),
+    columns = c(total_2021,
+                   residentes_2021,
+                   no_residentes_2021)) %>%
+  tab_spanner(
+    label = md("**Var i.a. %**"),
+    columns = c(var_total,
+                   var_res,
+                   var_nores)) %>%
+  tab_spanner(
+    label = md("**2020**"),
+    columns = c(total_2020,
+                   residentes_2020,
+                   no_residentes_2020)) %>%
+  tab_spanner(
+    label = md("**2019**"),
+    columns = c(total_2019,
+                   residentes_2019,
+                   no_residentes_2019)) %>% 
+  tab_options(container.height = 600,
+              container.overflow.y = T,
+               row_group.font.weight = "bold") %>% 
+  tab_caption(caption = glue("Visitas a las áreas protegidas nacionales por condición de residencia, según región. Años 2019-{Anio}."))
+
+tabla_regiones1 <- rbind(datos_regiones, total_region, total_pais) %>%
+  arrange(region, parque_nacional, anio) %>%
+  pivot_wider(names_from = anio, values_from = c(residentes, no_residentes, total)) %>% 
+  mutate(var_total = (total_2021/total_2019)-1,
+         var_res = (residentes_2021/residentes_2019)-1,
+         var_nores = (no_residentes_2021/no_residentes_2019)-1,
+         region = str_to_sentence(region))
+
+
+
+vartextreg <- tabla_regiones1 %>% 
+  filter(parque_nacional== "Total país") %>% 
+  select(var_res) %>% 
+  pull() 
+
+#ifelse(vartextreg > 0, "los turistas residentes presentaron un incremento del", " los turistas residentes cayeron un") 
+
+#vartextreg %>% 
+#  lbl_percent()
+
+
+vartextreg_nores <- tabla_regiones1 %>% 
+  filter(parque_nacional== "Total país") %>% 
+ select(var_nores) %>% 
+#para traer el valor, se usa el pull  
+  pull()  
+
+
+totalreg <- tabla_regiones1 %>% 
+  filter(parque_nacional== "Total país") %>% 
+  select(var_total) %>% 
+  pull()
+  
+
+#ifelse(totalreg>0, "registraron un incremento del", "tuvieron una caída del")
+
+#ifelse(vartextreg_nores > 0, "registraron un crecimiento del", " disminuyeron un") 
+
+
+#totaltur <- datos_tabla1 %>% 
+ # filter(anio==Anio) %>% 
+  #select(total) %>% 
+  #pull()/1000000 
+
+```
+
+
+Al comparar los resultados del `r as.character(Anio)` con el `r as.character(Anio - 2)` (prepandemia), las visitas `r ifelse(totalreg>0, "registraron un incremento del", "tuvieron una caída del")` `r str_remove(lbl_percent(totalreg), "-")`, de las cuales, las visitas de los no residentes cayeron un `r str_remove(lbl_percent(vartextreg_nores),"-")`, producto de las restricciones a la movilidad en el mundo por la crisis sanitaria del Covid-19. 
+
+En `r as.character(Anio)` los parques de la región Patagonia (12 áreas protegidas) concentraron el 59% del total de las visitas del país (7 p.p. menos que en el `r Anio - 1` y 9 p.p. más si se lo compara con el `r Anio - 2`), mientras que los parques de la región Litoral (10 áreas protegidas) totalizaron un 33% (2 p.p. más que en el `r Anio -1` y 10 p.p. menos respecto del `r Anio - 2`). Por otro lado, al observar la distribución según condición de residencia, en el `r as.character(Anio)` las visitas de los residentes tuvieron una participación en torno del 98% en las regiones Patagonia y Litoral respectivamente, mientras que en el `r Anio - 2` rondó en un 65% en cada una.
+
+
+```{r parques3}
+
+tabla_2 %>% 
+  sub_zero(columns = c(total_2021 , residentes_2021, no_residentes_2021, total_2020, residentes_2020, no_residentes_2020, total_2019, residentes_2019, no_residentes_2019),
+           rows = everything(), 
+           zero_text = "///") %>% 
+  tab_footnote(
+    footnote = "Datos provisorios",
+     locations = cells_column_spanners(spanners = c("**2021**", "**2020**")), placement = "right"
+  ) %>%
+    tab_footnote(
+    footnote = "No se recibió información de visitas de los parques Lago Puelo, Los Glaciares (portada Lago Viedma), Tierra del Fuego (RN3 en junio y julio), Monte León (enero y febrero).",
+    locations = cells_row_groups(groups = c("Patagonia")), placement = "right"
+  ) %>% 
+  tab_footnote(
+    footnote = "No se recibió información de visitas en el mes de junio.",
+    locations = cells_row_groups(groups = c("Cordoba")), placement = "right"
+  ) %>% 
+  tab_footnote(
+    footnote = "Los parques Sierra de las Quijadas y San Guillermo se mantuvieron cerrados a la visita hasta enero y mayo respectivamente por la emergencia sanitaria del covid-19; no se recibió información de visitas del parque El Leoncito (noviembre).",
+    locations = cells_row_groups(groups = c("Cuyo")), placement = "right"
+  ) %>% 
+  tab_footnote(
+    footnote = "El PN Copo se reabrió a la visita a mediados de octubre; el parque Baritú se mantuvo cerrado a la visita desde principios del 2021 hasta septiembre por la emergencia sanitaria del covid-19",
+    locations = cells_row_groups(groups = c("Norte")), placement = "right"
+  ) %>% 
+   tab_footnote(
+    footnote = "Los parques Formosa y Colonia Benitez se mantuvieron cerrados hasta septiembre por la emergencia sanitaria del covid-19; los parques Mburucuyá y Predelta se mantuvieron cerrados de mayo a mediados de julio; el parque Río Pilcomayo se mantuvo cerrado a la visita en enero y febrero, y desde mediados de mayo a fines de junio por la emergencia sanitaria del covid-19.",
+    locations = cells_row_groups(groups = c("Litoral")), placement = "right"
+  )
+  
+
+```
+
+  
+
+
+
+```{r}
+datos_grafico2 <- parques_nacionales %>% 
+  filter(anio %in% c(Anio-1, Anio)) %>% 
+  group_by(anio, region, residencia) %>% 
+  summarise(visitantes = round(sum(visitantes, na.rm = T),0)) %>% 
+  ungroup() %>% 
+  group_by(region, residencia) %>% 
+  mutate(var = visitantes/lag(visitantes, 1)-1) %>% 
+  filter(anio == Anio)
+
+total_grafico2 <- parques_nacionales %>% 
+  filter(anio %in% c(Anio-1, Anio)) %>% 
+  group_by(anio, region) %>% 
+  summarise(visitantes = round(sum(visitantes, na.rm = T),0)) %>% 
+  ungroup() %>% 
+  group_by(region) %>% 
+  mutate(var = visitantes/lag(visitantes, 1)-1) %>% 
+  filter(anio == Anio) %>% 
+  mutate(residencia = "total")
+
+datos_pais_grafico2 <- parques_nacionales %>% 
+  filter(anio %in% c(Anio-1, Anio)) %>% 
+  group_by(anio, residencia) %>% 
+  summarise(visitantes = round(sum(visitantes, na.rm = T),0)) %>% 
+  ungroup() %>% 
+  group_by(residencia) %>% 
+  mutate(var = visitantes/lag(visitantes, 1)-1) %>% 
+  filter(anio == Anio) %>% 
+  mutate(region = "Total")
+
+total_pais_grafico2 <- parques_nacionales %>% 
+  filter(anio %in% c(Anio-1, Anio)) %>% 
+  group_by(anio) %>% 
+  summarise(visitantes = round(sum(visitantes, na.rm = T),0)) %>% 
+  ungroup() %>% 
+  mutate(var = visitantes/lag(visitantes, 1)-1) %>% 
+  filter(anio == Anio) %>% 
+  mutate(residencia = "total", region = "Total")
+
+
+vartext2 <- datos_pais_grafico2 %>% 
+  filter(residencia== "residentes") %>% 
+  select(var) %>% 
+  pull() 
+
+#ifelse(vartext2 > 0, "el incremento del", " una caída de") 
+
+#vartext %>% 
+#  lbl_percent()
+
+
+vartexpatag <- datos_grafico2 %>% 
+  filter(region== "patagonia", residencia=="residentes") %>% 
+  select(var) %>% 
+  pull()  
+
+vartexlitoral <- datos_grafico2 %>% 
+  filter(region== "litoral", residencia=="residentes") %>% 
+  select(var) %>% 
+  pull()  
+
+vartexnorte <- datos_grafico2 %>% 
+  filter(region== "norte", residencia=="residentes") %>% 
+  select(var) %>% 
+  pull()  
+
+
+#ifelse(total>0, "un crecimiento de las visitas", "tuvieron una caída del")
+
+#ifelse(vartexpatag > 0, "el crecimiento del", " disminuyeron un") 
+
+#ifelse(vartexlitoral > 0, "un incremento del", " disminuyeron un") 
+
+#ifelse(vartexnorte > 0, "un crecimiento del", " disminuyeron un") 
+
+
+datos_grafico2 <- rbind(datos_grafico2, total_grafico2,datos_pais_grafico2, total_pais_grafico2)
+```
+
+Al considerar las visitas según condición de residencia, se observa que `r ifelse(vartext2 > 0, "el incremento del", " una caída de")` `r lbl_percent(vartext2)` en las visitas de los residentes se explica principalmente por `r ifelse(total>0, "un crecimiento de", "tuvieron una caída del")` las visitas de los parques de las regiones Patagonia, Litoral y Norte (`r lbl_percent(vartexpatag)`,  `r lbl_percent(vartexlitoral)` y `r lbl_percent(vartexnorte)`) respectivamente.
+
+```{r parques4, fig.cap=glue("Visitas a los parques nacionales por región de destino según condición de residencia, variación interanual. Años {Anio}-{Anio-1}."), fig.height=4}
+
+
+datos_grafico2 %>% 
+  mutate(region = str_to_sentence(region),
+         residencia = str_to_sentence(residencia)) %>% 
+  ggplot(aes(region, var, group = residencia)) +
+  geom_col(aes(fill = residencia), 
+           position = position_dodge()) +
+  geom_label(aes(label= lbl_percent(var, decimales = 0) ), position = position_dodge(1), size= 2.5,
+             alpha = 0.8, label.padding = unit(0.7,"mm"))+
+  scale_fill_dnmye() +
+  scale_y_percent(limits = c(-1.2,3.1)) +
+  labs(x = "", y = "", fill = "",
+       caption = "Fuente: DNMyE en base a datos de la APN.") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        #text = element_text(family = "Encode Sans"),
+        plot.caption  = element_text(size = 7)
+  )
+```
+
+
+
+
+```{r}
+tabla_trim <- parques_nacionales %>% 
+  filter(anio %in% c(Anio)) %>% 
+  mutate(trimestre = case_when(mes %in% c("01","02","03") ~ "I Trim",
+                               mes %in% c("04","05", "06") ~ "II Trim",
+                               mes %in% c("07","08","09") ~ "III Trim",
+                               mes %in% c("10","11","12") ~ "IV Trim")) %>% 
+  group_by(anio, trimestre, residencia) %>% 
+  summarise(visitantes = as.integer(sum(visitantes, na.rm = T))) %>% 
+  ungroup() %>% 
+  group_by(anio) %>% 
+  mutate(total = sum(visitantes)) %>% 
+  ungroup() %>% 
+  mutate(participacion = visitantes/total)
+```
+
+
+
+
+```{r}
+graph_trim <- tabla_trim %>% 
+  mutate(trimestre = factor(trimestre, levels = c("I Trim", "II Trim","III Trim","IV Trim"))) %>% 
+  ggplot() +
+  geom_col(aes(trimestre, participacion, fill = str_to_sentence(residencia))) +
+  geom_label(aes(trimestre, participacion, group = residencia, label= lbl_percent(participacion, decimales = 2)), position = position_stack(0.5), size=2.5)+
+                   
+#lbl_percent(var, decimales = 0) ), position = position_dodge(1), size= 2.5)+
+  scale_fill_dnmye() +
+  scale_y_percent() +
+  labs(x = "", y = "Participación % en las visitas", fill = "",
+       caption = "Fuente: DNMyE en base a datos de la APN.") +
+  theme_minimal() +
+    theme(legend.position = "none",
+        #text = element_text(family = "Encode Sans"),
+        plot.caption  = element_text(size = 7)
+  )
+
+
+tabla_trim1 <- parques_nacionales %>% 
+  filter(anio %in% c(Anio)) %>% 
+  #filter(anio %in% c(Anio-1, Anio)) %>% 
+  #filter(anio >= Anio-2) %>%
+  group_by(anio) %>% 
+  mutate(trimestre = case_when(mes %in% c("01","02","03") ~ "I Trim",
+                               mes %in% c("04","05", "06") ~ "II Trim",
+                               mes %in% c("07","08","09") ~ "III Trim",
+                               mes %in% c("10","11","12") ~ "IV Trim")) %>% 
+  group_by(anio, trimestre) %>% 
+  summarise(visitantes = as.integer(sum(visitantes, na.rm = T))) %>% 
+  mutate(total = sum(visitantes)) %>% 
+  #ungroup() %>% 
+  mutate(participacion = visitantes/total) %>% 
+  ungroup() %>% 
+  group_by(anio) 
+ 
+  part1 <- tabla_trim1 %>% 
+  filter(trimestre== "IV Trim") %>% 
+  select(participacion) %>% 
+  pull() 
+
+#ifelse(part1 > 0, "se concentró el", " no llego a") 
+
+#part1 %>% 
+#  lbl_percent()         
+
+
+```
+
+Al analizar la estacionalidad, se observa que en el cuarto trimestre del `r as.character(Anio)` `r ifelse(part1 > 0, "se concentró el", " no llego a")` `r lbl_percent(part1)` de las visitas anuales, debido a la gradual flexibilización de las medidas sanitarias por el covid-19 que fueron aplicando las provincias especialmente a partir del segundo semestre del año.
+
+```{r parques5, fig.cap= glue("Visitas a los parques nacionales por trimestre. Año {Anio}."), fig.height=4}
+graph_trim
+```
+
+
+
+```{r}
+datos_regiones_trim <- parques_nacionales %>%
+  filter(anio >= Anio-2) %>% 
+   mutate(trimestre = case_when(mes %in% c("01","02","03") ~ "I Trim",
+                               mes %in% c("04","05", "06") ~ "II Trim",
+                               mes %in% c("07","08","09") ~ "III Trim",
+                               mes %in% c("10","11","12") ~ "IV Trim")) %>% 
+  group_by(anio, region, trimestre, residencia) %>% 
+  summarise(visitantes = round(sum(visitantes, na.rm = T),0)) %>% 
+  ungroup() %>% 
+  mutate(residencia = str_replace(residencia, pattern = " ",replacement = "_")) %>%
+  pivot_wider(names_from = residencia, values_from = visitantes) %>% 
+  mutate(total = residentes + no_residentes)
+
+total_region_trim <- datos_regiones %>% 
+  group_by(anio, region) %>% 
+  summarise(total = sum(total), 
+            residentes= sum(residentes), 
+            no_residentes = sum(no_residentes)) %>% 
+  mutate(trimestre = "Total") %>% 
+  ungroup()
+
+
+total_pais_trim <- parques_nacionales %>%
+  filter(anio >= Anio-2) %>% 
+   mutate(trimestre = case_when(mes %in% c("01","02","03") ~ "I Trim",
+                               mes %in% c("04","05", "06") ~ "II Trim",
+                               mes %in% c("07","08","09") ~ "III Trim",
+                               mes %in% c("10","11","12") ~ "IV Trim")) %>% 
+  group_by(anio, trimestre, residencia) %>% 
+  summarise(visitantes = round(sum(visitantes, na.rm = T),0)) %>% 
+  ungroup() %>% 
+  mutate(residencia = str_replace(residencia, pattern = " ",replacement = "_")) %>%
+  pivot_wider(names_from = residencia, values_from = visitantes) %>% 
+  mutate(total = residentes + no_residentes,
+         region = "país")
+
+total_pais <- datos_regiones %>% 
+  group_by(anio) %>% 
+  summarise(total = sum(total), 
+            residentes= sum(residentes), 
+            no_residentes = sum(no_residentes)) %>% 
+  mutate(trimestre = "Total",
+         region = "país") %>% 
+  ungroup()
+
+
+tabla_regiones_trim <- rbind(total_pais, total_pais_trim, total_region_trim, datos_regiones_trim) %>%
+  pivot_wider(names_from = anio, values_from = c(residentes, no_residentes, total)) %>% 
+  mutate(var_total = (total_2021/total_2020)-1,
+         var_res = (residentes_2021/residentes_2020)-1,
+         var_nores = (no_residentes_2021/no_residentes_2020)-1,
+         region = str_to_sentence(region)) %>% 
+  group_by(region) %>% 
+  mutate(total_trim_reg = sum(total_2021)/2,
+         res_trim_reg = sum(residentes_2021)/2,
+         nores_trim_reg = sum(no_residentes_2021)/2) %>% 
+  ungroup() %>% 
+  mutate(part_total = total_2021/total_trim_reg,
+         part_res = residentes_2021/res_trim_reg,
+         part_nores = no_residentes_2021/nores_trim_reg)
+
+tabla_regiones_trim[sapply(tabla_regiones_trim, is.infinite)] <- NA
+
+
+ 
+```
+
+```{r}
+
+tabla_3 <- tabla_regiones_trim %>% 
+  select(region, trimestre, total_2021, residentes_2021, no_residentes_2021,
+         var_total, var_res, var_nores,
+         part_total, part_res, part_nores,
+         total_2020, residentes_2020, no_residentes_2020,
+         total_2019, residentes_2019, no_residentes_2019) %>% 
+  arrange(match(region, c("País")), match(trimestre, c("Total","I Trim", "II Trim","III Trim","IV Trim"))) %>%
+  gt(groupname_col = "region") %>% 
+  cols_label(
+    region = md("**Región**"),
+    trimestre = md("**Trimestre**"),
+    total_2021 = md("**Total**"),
+    residentes_2021 = md("**Residentes**"),
+    no_residentes_2021 = md("**No residentes**"),
+    var_total = md("**Total**"),
+    var_res = md("**Residentes**"),
+    var_nores = md("**No residentes**"),
+    part_total = md("**Total**"),
+    part_res = md("**Residentes**"),
+    part_nores = md("**No residentes**"),
+    total_2020 = md("**Total**"),
+    residentes_2020 = md("**Residentes**"),
+    no_residentes_2020 = md("**No residentes**"),
+    total_2019 = md("**Total**"),
+    residentes_2019 = md("**Residentes**"),
+    no_residentes_2019 = md("**No residentes**")
+  ) %>% 
+  fmt_number(columns = c(3:5,12:17), decimals = 0, dec_mark = ",", sep_mark = ".") %>% 
+  fmt_percent(columns = c(6:11), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  cols_align(
+    align = "center",
+    columns = everything())  %>% 
+  opt_table_font(
+    font = "Encode Sans"
+  ) %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a datos de la APN.")
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_total),
+      rows = var_total < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_total),
+      rows = var_total > 0)
+  )  %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_res),
+      rows = var_res < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_res),
+      rows = var_res > 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_nores),
+      rows = var_nores < 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = c(var_nores),
+      rows = var_nores > 0)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#000000"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = everything(),
+      rows = trimestre == "Total")
+  ) %>%
+  tab_spanner(
+    label = md("**2021**"),
+    columns = c(total_2021,
+                   residentes_2021,
+                   no_residentes_2021)) %>%
+  tab_spanner(
+    label = md("**Var i.a. %**"),
+    columns = c(var_total,
+                   var_res,
+                   var_nores)) %>%
+  tab_spanner(
+    label = md("**Participación %**"),
+    columns = c(part_total,
+                   part_res,
+                   part_nores)) %>%
+  tab_spanner(
+    label = md("**2020**"),
+    columns = c(total_2020,
+                   residentes_2020,
+                   no_residentes_2020)) %>%
+  tab_spanner(
+    label = md("**2019**"),
+    columns = c(total_2019,
+                   residentes_2019,
+                   no_residentes_2019)) %>%
+  tab_options(container.height = 600,
+              container.overflow.y = T,
+              row_group.font.weight = "bold") %>% 
+  sub_missing(columns = everything(),
+              missing_text = "///") %>% 
+  sub_zero(columns = c("total_2020", "residentes_2020", "no_residentes_2020","total_2019", "residentes_2019", "no_residentes_2019"),
+  zero_text = "///") %>%
+  tab_caption(caption = glue("Visitas a los parques nacionales por región según trimestre. Años {Anio-2}-{Anio}."))
+
+
+#tabla_total_trim <- tabla_regiones_trim %>% 
+ #filter(region == "País")
+  #select(trimestre, total_2021, residentes_2021, no_residentes_2021,
+         #var_total, var_res, var_nores,
+         #part_total, part_res, part_nores,
+        #total_2020, residentes_2020, no_residentes_2020,
+         #total_2019, residentes_2019, no_residentes_2019) %>% 
+  #arrange(match(region, c("País")), match(trimestre, c("Total","I Trim", "II Trim","III Trim","IV Trim")))
+
+ var4t <- tabla_regiones_trim %>% 
+  filter(trimestre== "IV Trim", region =="País") %>% 
+  select(var_total) %>% 
+  pull() 
+
+#ifelse(var4t > 0, "se concentró el", " no llego a") 
+
+#var4t %>% 
+#lbl_percent()  
+ 
+ 
+ var3t <- tabla_regiones_trim %>% 
+  filter(trimestre== "III Trim", region =="País") %>% 
+  select(var_total) %>% 
+  pull() 
+
+#ifelse(var3t > 0, "se concentró el", " no llego a") 
+
+#var3t %>% 
+#lbl_percent() 
+ 
+ var1t <- tabla_regiones_trim %>% 
+  filter(trimestre== "I Trim", region =="País") %>% 
+  select(var_total) %>% 
+  pull() 
+
+#ifelse(var1t > 0, "se registró un incremento del", " se registró una caída de") 
+
+#var1t %>% 
+#lbl_percent( 
+ 
+ 
+ var2t <- tabla_regiones_trim %>% 
+  filter(trimestre== "II Trim", region =="País") %>% 
+  select(var_total) %>% 
+  pull() 
+
+#ifelse(var2t > 0, "fue el que mas visitas registró", " fue el que menos visitas registró") 
+
+#var2t %>% 
+#lbl_percent()
+
+```
+
+En el tercer y cuarto trimestre se registraron en el país los mayores incrementos en las visitas respecto del mismo período del año anterior (`r lbl_percent(var3t)` y  `r lbl_percent(var4t)` respectivamente).  
+
+
+En el primer trimestre `r as.character(Anio)` `r ifelse(var1t > 0, "se registró un incremento del", " se registró una caída de")` `r str_remove(lbl_percent(var1t),"-")` debido a que las restricciones a la movilidad comenzaron durante la segunda mitad de marzo del `r as.character(Anio - 1)`.  El segundo trimestre fue el que menos visitas concentró (7,9%) debido a que en el `r as.character(Anio)` volvieron a aplicarse restricciones a los viajes en el país a partir de la segunda quincena de mayo.
+
+Las regiones Buenos Aires, Córdoba y Cuyo concentraron la mayor cantidad de visitas durante el tercer trimestre del año (en torno al 30%), mientras que en las regiones Litoral, Patagonia y Norte la mayor cantidad de visitas se registraron durante el cuarto trimestre (rondando el 40%).
+
+
+```{r parques6}
+tabla_3
+```
+
+
+
+
+```{r}
+datos_grafico3 <- parques_nacionales %>% 
+  filter(anio == Anio) %>% 
+  group_by(parque_nacional) %>% 
+  summarise(visitantes = as.integer(sum(visitantes, na.rm = T))) %>% 
+  ungroup() %>% 
+  mutate(participacion = visitantes/sum(visitantes),
+         parque_nacional = case_when(participacion < 0.01 ~ "Resto",
+                                     TRUE ~ parque_nacional)) %>% 
+  group_by(parque_nacional) %>% 
+  summarise(visitantes = as.integer(sum(visitantes, na.rm = T))) %>% 
+  ungroup() %>% 
+  mutate(participacion = visitantes/sum(visitantes))
+```
+
+
+
+```{r}
+graf_5_4 <- datos_grafico3 %>% 
+  mutate(parque_nacional = fct_reorder(parque_nacional, participacion),
+         parque_nacional = fct_reorder(parque_nacional, match(parque_nacional, c("Resto")))
+         ) %>% 
+  ggplot() +
+  geom_col(aes(parque_nacional, participacion, fill = participacion)) +
+  geom_text(aes(x = parque_nacional, y = participacion, 
+                label = paste0(format(round(participacion*100,1), decimal.mark = ","), " %")), position = position_stack(vjust = 0.5), size = 2.5) +
+  scale_fill_dnmye(palette = "divergente", discrete = F, reverse = T) +
+  scale_y_percent() +
+  labs(x = "", y = "", fill = "",
+       caption = "Fuente: DNMyE en base a datos de la APN.") +
+  coord_flip() +
+  theme_minimal() +
+    theme(legend.position = "none",
+        #text = element_text(family = "Encode Sans"),
+        plot.caption  = element_text(size = 7)
+  ) 
+
+ partmax <- datos_grafico3 %>% 
+  filter(parque_nacional== "Iguazú") %>% 
+  select(participacion) %>% 
+  pull() 
+
+#ifelse(partmax > 0, "fue el que concentró el mayor número de visitas", " fue el que concentró el menor número de visitas") 
+
+#partmax %>% 
+#  `lbl_percent() ` 
+
+```
+
+Al observar la participación de los 10 parques con mayor volumen de visitas en el `r as.character(Anio)`, el 70% se concentró en cuatro parques nacionales: el PN Iguazú `r ifelse(partmax > 0, "fue el que concentró el mayor número de visitas", " fue el que concentró el menor número de visitas") ` `r lbl_percent(partmax)`
+, siguiéndole en importancia tres parques de la región Patagonia:
+Los Glaciares, Nahuel Huapi y Tierra del Fuego, que reunieron en conjunto el 46% del total.
+
+
+```{r parques7, fig.cap=glue("Visitas a áreas protegidas nacionales con mayor volumen de visitantes, distribución porcentual. Año {Anio}."), fig.height=4}
+graf_5_4
+```
+
+```{r}
+
+datos_grafico4 <- parques_nacionales %>% 
+  filter(anio == Anio) %>% 
+  group_by(parque_nacional, residencia) %>% 
+  summarise(visitantes = as.integer(sum(visitantes, na.rm = T))) %>% 
+  ungroup() %>% 
+  group_by(parque_nacional) %>% 
+  mutate(total = sum(visitantes)) %>% 
+  ungroup() %>% 
+  mutate(parque_nacional = case_when(total < 16000 ~ "Resto",
+                                     TRUE ~ parque_nacional)) %>% 
+   group_by(parque_nacional, residencia) %>% 
+  summarise(visitantes = as.integer(sum(visitantes, na.rm = T))) %>% 
+  ungroup() %>% 
+  group_by(parque_nacional) %>% 
+  mutate(total = sum(visitantes)) %>% 
+  ungroup() %>% 
+  mutate(participacion = visitantes/total)
+
+fig_5_5 <- datos_grafico4 %>% 
+  mutate(parque_nacional = fct_reorder(parque_nacional, participacion)) %>% 
+  ggplot(aes(fill=residencia, y=participacion, x=parque_nacional)) + 
+  geom_col(position="fill", width = 0.8) +
+  geom_text(aes(x = parque_nacional, y = participacion, 
+                label = paste0(format(round(participacion*100,1), decimal.mark = ","), " %")),
+            position = position_stack(vjust = 0.5), size = 2.5) +
+  scale_fill_dnmye() +
+  scale_y_percent(limits = c(0, 1.1)) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "none",
+        #text = element_text(family = "Encode Sans"),
+        plot.caption  = element_text(size = 7)
+  ) +
+  labs(x="",y="", fill = "",
+       caption = "Fuente: DNMyE en base a datos de la APN.")
+```
+En el  `r as.character(Anio)` la mayor proporción de visitas que recibieron los Parques Nacionales fueron de turistas residentes, debido al proceso de recuperación gradual de los viajes a nivel mundial después de la pandemia. No obstante, en los PN Iguazú, Los Glaciares y Tierra del Fuego, la participación de turistas no residentes alcanzó a explicar aproximadamente el 10% de las visitas totales del `r as.character(Anio)`, por la gradual apertura de las fronteras del país pospandemia.
+
+
+```{r parques8, fig.cap=glue("Visitas a las áreas protegidas nacionales, según condición de residencia. Año {Anio}."), fig.height=4}
+fig_5_5
+```
+
+
+## Recursos disponibles
+
+Los datos que se muestran en este capítulo forman parte del Sistema de Información Turística de la Argentina (SINTA) <https://www.yvera.tur.ar/sinta/>{target="_blank"} de la Dirección Nacional de Mercados y Estadística (DNMyE). Los mismos se presentan a través de distintos formatos:
+
+-   [Informes:](https://www.yvera.tur.ar/sinta/informe/info/parques-nacionales){target="_blank"} Publicación mensual con información de visitas de residentes y no residentes a Parques Nacionales de Argentina.
+
+-   [Reportes:](https://tableros.yvera.tur.ar/parques_nacionales.html){target="_blank"}Reporte de los últimos datos de visitas a Parques Nacionales.
+
+-   [Datos Abiertos:](https://datos.yvera.gob.ar/dataset?groups=turismo-naturaleza){target="_blank"} El portal de Datos Abiertos incluye un dataset con recursos de visitas a Parques Nacionales según residencia y región de destino.

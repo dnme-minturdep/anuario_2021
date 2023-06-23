@@ -1,0 +1,3321 @@
+---
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r include=FALSE}
+#Librerias
+library(tidyverse)
+library(gt)
+library(arrow)
+library(herramientas)
+library(comunicacion)
+library(glue)
+library(googlesheets4)
+library(lubridate)
+library(data.table)
+options(scipen = 999)
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE,echo=FALSE)
+
+
+```
+
+# **Transporte Aéreo** {#transporte-aereo}
+
+## Introducción 
+
+En esta sección, se describe la información correspondiente al transporte aéreo de nuestro país en base a los datos obtenidos de la Administración Nacional de Aviación Civil (ANAC) sobre vuelos comerciales.
+
+En el apartado siguiente, se estudian los vuelos de cabotaje considerando las frecuencias aéreas de los vuelos arribados mensualmente según las regiones, provincias y localidades de destino.
+Adicionalmente, en el apartado que le continúa, se desarrolla la evolución del transporte aéreo internacional, considerando las frecuencias mensuales de los vuelos internacionales arribados a nuestro país, según diferentes variables de interés, tales como compañía aérea, aeropuertos de destino, etc.
+
+```{r conectividad ANAC, echo = FALSE}
+
+# Cargamos la base
+base_total <- read_file_srv("/srv/DataDNMYE/aerocomercial/anac/base_anac_agrupada_diaria.parquet")
+
+anio <- 2021
+  
+```
+
+```{r Cabotaje - regiones, echo = FALSE}
+# Cabotaje
+cabotaje <- base_total %>% 
+  filter(clasificacion_vuelo == "Cabotaje") %>% 
+  filter(anio_local >= 2019 & anio_local <= 2021) %>% 
+  mutate(region_destino = case_when(destino_provincia_etiqueta == "Buenos Aires" ~ "Buenos Aires",
+                                    destino_provincia_etiqueta == "Ciudad Autónoma de Buenos Aires" ~ "CABA",
+                                    destino_provincia_etiqueta == "Córdoba" ~ "Córdoba",
+                                    destino_provincia_etiqueta == "Tierra del Fuego, Antártida e Islas del Atlántico Sur" ~ "Patagonia",
+                                    destino_provincia_etiqueta == "Santa Cruz" ~ "Patagonia",
+                                    destino_provincia_etiqueta == "Chubut" ~ "Patagonia",
+                                    destino_provincia_etiqueta == "Neuquén" ~ "Patagonia",
+                                    destino_provincia_etiqueta == "Río Negro" ~ "Patagonia",
+                                    destino_provincia_etiqueta == "La Pampa" ~ "Patagonia",
+                                    destino_provincia_etiqueta == "Mendoza" ~ "Cuyo",
+                                    destino_provincia_etiqueta == "San Juan" ~ "Cuyo",
+                                    destino_provincia_etiqueta == "San Luis" ~ "Cuyo",
+                                    destino_provincia_etiqueta == "La Rioja" ~ "Norte",
+                                    destino_provincia_etiqueta == "Catamarca" ~ "Norte",
+                                    destino_provincia_etiqueta == "Salta" ~ "Norte",
+                                    destino_provincia_etiqueta == "Jujuy" ~ "Norte",
+                                    destino_provincia_etiqueta == "Santiago del Estero" ~ "Norte",
+                                    destino_provincia_etiqueta == "Tucumán" ~ "Norte",
+                                    destino_provincia_etiqueta == "Santa Fe" ~ "Litoral",
+                                    destino_provincia_etiqueta == "Chaco" ~ "Litoral",
+                                    destino_provincia_etiqueta == "Formosa" ~ "Litoral",
+                                    destino_provincia_etiqueta == "Misiones" ~ "Litoral",
+                                    destino_provincia_etiqueta == "Corrientes" ~ "Litoral",
+                                    destino_provincia_etiqueta == "Entre Ríos" ~ "Litoral",
+                                    T ~ "No hay info"),
+         destino_localidad_etiqueta = recode(destino_localidad_etiqueta,
+                                             "San Miguel de Tucumán (Est. Tucumán)" = "San Miguel de Tucumán",
+                                             "San Salvador de Jujuy (Est. Jujuy)" = "San Salvador de Jujuy"))
+
+
+#Filtramos de momento los casos sin info.
+cabotaje <- cabotaje %>% 
+  filter(region_destino != "No hay info") # Que hacemos con los casos que van a malvinas?
+
+```
+
+## Transporte Aéreo de Cabotaje
+
+```{r, vuelos totales, echo = FALSE}
+vuelos <- cabotaje %>% 
+  group_by(anio_local) %>% 
+  summarise(frecuencias = round(sum(vuelos, na.rm = T), 0)) %>%
+  mutate(anio_local = paste0("anio_", anio_local)) %>% 
+  pivot_wider(names_from = "anio_local", values_from = frecuencias) %>%
+  mutate(var = round((anio_2021/anio_2020 - 1)*100, 2),
+         var_19 = round((anio_2021/anio_2019 - 1)*100, 2)) 
+
+vuelos_2019 <- vuelos[,1] %>% pull
+vuelos_2020 <- vuelos[,2] %>% pull
+vuelos_2021 <- vuelos[,3] %>% pull %>% format(., big.mark = ".")
+
+var_19_factor <- if_else(vuelos$var_19 > 0,
+                  "crecimiento del",
+                  "decrecimiento del")
+
+var_20_factor <- if_else(vuelos$var > 0,
+                  "crecimiento del",
+                  "decrecimiento del")
+
+var_19 <- vuelos[,5] %>% pull %>% abs(.) %>% format(., decimal.mark = ",")
+
+var_20 <- vuelos[,4] %>% pull %>% abs(.) %>% format(., decimal.mark = ",")
+
+```
+
+Al examinar la evolución de los vuelos de cabotaje realizados en el país, se verificó un total de `r vuelos_2021` frecuencias aéreas para el año `r as.character(anio)`, lo que implica un `r var_20_factor` `r var_20`% con respecto al año anterior y un `r var_19_factor` `r var_19`% comparado al 2019.
+
+```{r}
+pasajeros <- cabotaje %>% 
+  group_by(anio_local) %>% 
+  summarise(pasajeros = round(sum(pax_ad, na.rm = T), 0)) %>%
+  mutate(anio_local = paste0("anio_", anio_local)) %>% 
+  pivot_wider(names_from = "anio_local", values_from = pasajeros) %>% 
+  mutate(var = round((anio_2021/anio_2020 - 1)*100, 2),
+         var_19 = round((anio_2021/anio_2019 - 1)*100, 2)) 
+
+pasajeros_2019 <- pasajeros[,1] %>% pull
+pasajeros_2020 <- pasajeros[,2] %>% pull
+pasajeros_2021 <- pasajeros[,3] %>% pull %>% format(., big.mark = ".")
+
+var_19_factor_pasajeros <- if_else(pasajeros$var_19 > 0,
+                  "aumento del",
+                  "decrecimiento del")
+
+var_20_factor_pasajeros <- if_else(pasajeros$var > 0,
+                  "incremento del",
+                  "reducción del")
+
+var_19_pasajeros <- pasajeros[,5] %>% pull %>% abs(.) %>% format(., decimal.mark = ",")
+
+var_20_pasajeros <- pasajeros[,4] %>% pull %>% abs(.) %>% format(., decimal.mark = ",")
+```
+
+En el mismo año `r as.character(anio)`, `r pasajeros_2021` pasajeros viajaron en vuelos de cabotaje por el interior del país. Ello representa un `r var_20_factor_pasajeros` `r var_20_pasajeros`% con respecto al año anterior y un `r var_19_factor_pasajeros` `r var_19_pasajeros`% comparado al 2019.
+
+```{r}
+asientos <- cabotaje %>% 
+  group_by(anio_local) %>% 
+  summarise(asientos = round(sum(asientos_pax, na.rm = T), 0)) %>%
+  mutate(anio_local = paste0("anio_", anio_local)) %>% 
+  pivot_wider(names_from = "anio_local", values_from = asientos) %>% 
+  mutate(var = round((anio_2021/anio_2020 - 1)*100, 2),
+         var_19 = round((anio_2021/anio_2019 - 1)*100, 2))
+
+asientos_2019 <- asientos[,1] %>% pull
+asientos_2020 <- asientos[,2] %>% pull
+asientos_2021 <- asientos[,3] %>% pull %>% format(., big.mark = ".")
+
+var_19_factor_asientos <- if_else(asientos$var_19 > 0,
+                  "incremento del",
+                  "disminución del")
+
+var_20_factor_asientos <- if_else(asientos$var > 0,
+                  "crecimiento del",
+                  "mengua del")
+
+var_19_asientos <- asientos[,5] %>% pull %>% abs(.) %>% format(., decimal.mark = ",")
+
+var_20_asientos <- asientos[,4] %>% pull %>% abs(.) %>% format(., decimal.mark = ",")
+```
+
+En total, `r asientos_2021` asientos fueron ofrecidos en el año `r as.character(anio)` en vuelos de cabotaje. Dicha cifra supone un `r var_20_factor_asientos` `r var_20_asientos`% con respecto al año anterior y una `r var_19_factor_asientos` `r var_19_asientos`% comparado al 2019.
+
+```{r}
+# base_total %>%
+#   filter(clasificacion_vuelo == "Cabotaje") %>%
+#   filter(anio_local <= anio) %>%
+#   group_by(anio_local, mes_local) %>%
+#   summarise(frecuencias = sum(vuelos, na.rm = T)) %>%
+#   mutate(fecha = lubridate::my(paste0(mes_local,"-", anio_local)),
+#          frecuencias = round(frecuencias, 0)) %>%
+#   ggplot(aes(x = fecha,
+#              y = frecuencias)) +
+#   geom_line(color = dnmye_colores("cian"),
+#             stat = "identity",
+#             size = 1.25)+
+#   geom_point(color = dnmye_colores("cian"),
+#              fill = "white",
+#              stat = "identity",
+#              size = 2,
+#              shape = 21)+
+#   scale_y_continuous(limits = c(0,15000),
+#                      breaks = seq(0, 15000, 1000),
+#                      labels = function(x) format(x, big.mark = ".")) +
+#   scale_x_date(date_breaks = "3 month",
+#                date_labels = "%b-%y")+
+#   labs(#title = "Vuelos de cabotaje",
+#        y = "Cantidad",
+#        x = "",
+#        color = "",
+#        caption = "Fuente: MINTURDEP en base a información de ANAC") +
+#   theme_minimal() +
+#   theme(legend.position = "bottom",
+#         axis.text.x = element_text(angle = 45,
+#                                    hjust = 1,
+#                                    vjust = 1)) +
+#   guides(color = guide_legend(nrow = 1))
+```
+
+```{r grafico-1, fig.cap = glue("Vuelos de cabotaje. Años 2017 a {anio}.")}
+base_total %>%
+  filter(clasificacion_vuelo == "Cabotaje") %>%
+  filter(anio_local <= anio) %>% 
+  group_by(anio_local, mes_local) %>% 
+  summarise(vuelos = sum(vuelos, na.rm = T),
+            pasajeros = sum(pax_ad, na.rm = T),
+            asientos = sum(asientos_pax, na.rm = T)) %>% 
+  mutate(fecha = lubridate::my(paste0(mes_local,"-", anio_local))) %>% 
+  pivot_longer(cols = c("asientos", "vuelos", "pasajeros"),
+               names_to = "estadisticas",
+               values_to = "totales") %>% 
+  ggplot() +
+  # geom_col(aes(x = fecha,
+  #               y = asientos,
+  #               fill = "Asientos"),
+  #           stat = "identity",
+  #           width = 20)+
+  # geom_col(aes(x = fecha,
+  #               y = pasajeros,
+  #               fill = "Pasajeros"),
+  #           stat = "identity",
+  #           width = 15)+
+  geom_line(aes(x = fecha,
+                y = totales,
+                color = estadisticas),
+            stat = "identity",
+            size = 1, 
+            show.legend = F)+
+  geom_point(aes(x = fecha,
+                y = totales,
+                color = estadisticas),
+            stat = "identity",
+            size = 1.25,
+            show.legend = F)+
+  scale_y_continuous(#limits = c(0,2000000),
+                     #breaks = seq(0, 2000000, 250000),
+                     labels = function(x) format(x, big.mark = ".")) +
+  scale_x_date(date_breaks = "3 month", 
+               date_labels = "%b-%y")+
+  scale_color_dnmye(palette = "cualitativa")+
+  labs(title = "Mercado de cabotaje",
+       subtitle = "Vuelos, asientos y pasajeros",
+       y = "",
+       x = "",
+       fill = "",
+       color = "",
+       caption = "Fuente: DNMyE en base a información de ANAC.") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45,
+                                   hjust = 1, 
+                                   vjust = 1),
+        strip.text = element_text(face = "bold")) +
+  facet_grid(estadisticas ~ .,
+             scales = "free")
+```
+
+```{r}
+# val_refe <- base_total %>%
+#   filter(clasificacion_vuelo == "Cabotaje") %>%
+#   filter(anio_local <= anio) %>% 
+#   group_by(anio_local, mes_local) %>% 
+#   summarise(vuelos = sum(vuelos, na.rm = T),
+#             pasajeros = sum(pax_ad, na.rm = T),
+#             asientos = sum(asientos_pax, na.rm = T)) %>% 
+#   mutate(fecha = lubridate::my(paste0(mes_local,"-", anio_local))) %>% 
+#   ungroup() %>% 
+#   filter(fecha == min(fecha))
+# 
+# base_total %>%
+#   filter(clasificacion_vuelo == "Cabotaje") %>%
+#   filter(anio_local <= anio) %>% 
+#   group_by(anio_local, mes_local) %>% 
+#   summarise(vuelos = (sum(vuelos, na.rm = T) - val_refe$vuelos)/val_refe$vuelos,
+#             pasajeros = (sum(pax_ad, na.rm = T) - val_refe$pasajeros)/val_refe$pasajeros,
+#             asientos = (sum(asientos_pax, na.rm = T) - val_refe$asientos)/val_refe$asientos) %>%
+#   mutate(fecha = lubridate::my(paste0(mes_local,"-", anio_local)),
+#          across(.cols = c(vuelos, pasajeros, asientos), ~.*100)) %>%
+#   ggplot() +
+#   geom_line(aes(x = fecha,
+#                 y = vuelos,
+#                 color = "Vuelos"),
+#             alpha = 0.75,
+#             stat = "identity",
+#             size = 1)+
+#   geom_point(aes(x = fecha,
+#                 y = vuelos,
+#                 color = "Vuelos"),
+#              alpha = 0.75,
+#              fill = "white",
+#              stat = "identity",
+#              size = 1.5,
+#              shape = 21)+
+#   geom_line(aes(x = fecha,
+#                 y = pasajeros,
+#                 color = "Pasajeros"),
+#             alpha = 0.75,
+#             stat = "identity",
+#             size = 1)+
+#   geom_point(aes(x = fecha,
+#                 y = pasajeros,
+#                 color = "Pasajeros"),
+#              alpha = 0.75,
+#              fill = "white",
+#              stat = "identity",
+#              size = 1.5,
+#              shape = 21)+
+#   geom_line(aes(x = fecha,
+#                 y = asientos,
+#                 color = "Asientos"),
+#             alpha = 0.75,
+#             stat = "identity",
+#             size = 1)+
+#   geom_point(aes(x = fecha,
+#                 y = asientos,
+#                 color = "Asientos"),
+#              fill = "white",
+#              stat = "identity",
+#              alpha = 0.75,
+#              size = 1.5,
+#              shape = 21)+
+#   geom_hline(yintercept = 0)+
+#   scale_y_continuous(limits = c(-100, 50),
+#                      breaks = seq(-100, 50, 25),
+#                      labels = function(x) format(x, big.mark = ".")) +
+#   scale_x_date(date_breaks = "3 month", 
+#                date_labels = "%b-%y")+
+#   scale_color_manual(values = c("Vuelos" = dnmye_colores("amarillo"),
+#                                 "Pasajeros" = dnmye_colores("cian"),
+#                                 "Asientos" = dnmye_colores("rosa"))) +
+#   labs(title = "Mercado de cabotaje",
+#        subtitle = "Asientos, pasajeros y vuelos con respecto a enero 2017",
+#        y = "Variación",
+#        x = "",
+#        color = "",
+#        caption = "Fuente: MINTURDEP en base a información de ANAC") +
+#   theme_minimal() +
+#   theme(legend.position = "bottom",
+#         axis.text.x = element_text(angle = 45,
+#                                    hjust = 1, 
+#                                    vjust = 1)) +
+#   guides(color = guide_legend(nrow = 1))
+
+```
+
+```{r}
+ranking <- cabotaje %>% 
+  filter(anio_local == max(anio_local)) %>% 
+  group_by(region_destino) %>% 
+  summarise(frecuencias = round(sum(vuelos, na.rm = T), 0)) %>% 
+  arrange(-frecuencias) 
+
+ranking_2 <- ranking[2,1] %>% pull
+ranking_3 <- ranking[3,1] %>% pull
+ranking_4 <- ranking[4,1] %>% pull
+ranking_5 <- ranking[5,1] %>% pull
+ranking_6 <- ranking[6,1] %>% pull
+ranking_7 <- ranking[7,1] %>% pull
+
+veces_primero_ultimo <- round(max(ranking$frecuencias)/min(ranking$frecuencias), 1)
+
+ranking_20 <- cabotaje %>% 
+  filter(anio_local == 2020) %>% 
+  group_by(region_destino) %>% 
+  summarise(frecuencias = round(sum(vuelos, na.rm = T), 0)) %>% 
+  arrange(-frecuencias) 
+
+ranking20_2 <- ranking[2,1] %>% pull
+ranking20_3 <- ranking[3,1] %>% pull
+ranking20_4 <- ranking[4,1] %>% pull
+ranking20_5 <- ranking[5,1] %>% pull
+ranking20_6 <- ranking[6,1] %>% pull
+ranking20_7 <- ranking[7,1] %>% pull
+
+veces_primero_ultimo_20 <- round(max(ranking_20$frecuencias)/min(ranking_20$frecuencias), 1)
+
+
+```
+
+La **Ciudad de Buenos Aires** es la región del país a la que llega el mayor número de vuelos de cabotaje. A la misma le siguen **`r ranking_2`, `r ranking_3`, `r ranking_4`, `r ranking_5`, `r ranking_6` y `r ranking_7`**, en dicho orden. Comparativamente, la **Ciudad de Buenos Aires** recibe `r veces_primero_ultimo` veces más vuelos que la región que menos vuelos recibe (**`r ranking_7`**). En el año `r as.character(anio)` ese ratio fue de `r veces_primero_ultimo_20`, ubicándose nuevamente la región de **`r ranking20_7`** en último lugar.
+
+<br>
+
+```{r grafico-2, fig.cap= glue("Vuelos de cabotaje por región de destino. Años {anio-2} a {anio}.")}
+cabotaje %>% 
+  group_by(anio_local, region_destino) %>% 
+  summarise(frecuencias = round(sum(vuelos, na.rm = T), 0)) %>%
+  ggplot(aes(x = reorder(region_destino, -frecuencias), y = frecuencias)) +
+  geom_bar(aes(fill = as.factor(anio_local)),
+           position = position_dodge2(width = 0.9, padding = 0.1), stat = "identity") +
+  geom_text(aes(label = format(frecuencias, big.mark = "."), group = as.factor(anio_local)),
+                 fill = "white", #label.padding = unit(0.1, 'lines'),
+            position = position_dodge2(width = 0.9, preserve = 'single'),
+            vjust = -0.5,
+            size = 2.5)+
+  scale_y_continuous(limits = c(0,55000),
+                     breaks = seq(0, 50000, 10000),
+                     labels = function(x) format(x, big.mark = "."))+
+  scale_fill_dnmye(palette = "cualitativa", reverse = -1)+
+  labs(#title = "Frecuencias aéreas de vuelos de cabotaje por región de destino",
+       #subtitle = "Años 2019/2021",
+       y = "Frecuencias aéreas totales",
+       x = "",
+       fill = "",
+       caption = "Fuente: DNMyE en base a información de ANAC.") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+vuelos_x_mes <- cabotaje %>% 
+  group_by(anio_local, mes_local) %>% 
+  summarise(vuelos = sum(vuelos, na.rm = T)) %>% 
+  pivot_wider(names_from = "anio_local", values_from = "vuelos") %>% 
+  mutate(mes_local = lubridate::month(dmy(paste("01", mes_local, "2020", sep = "-")),
+                                      abbr = F, label = T))
+
+max_2021 <- (vuelos_x_mes %>% 
+  filter(`2021` == max(`2021`)))[1,4] %>% pull %>% format(., big.mark = ".")
+
+mes_max_2021 <- (vuelos_x_mes %>% 
+  filter(`2021` == max(`2021`)))[1,1] %>% pull 
+
+min_2021 <- (vuelos_x_mes %>% mutate(across(.cols = c(2:4), ~ round(., 0))) %>% 
+  filter(`2021` == min(`2021`)))[1,4] %>% pull %>% format(., big.mark = ".")
+
+mes_min_2021 <- (vuelos_x_mes %>% mutate(across(.cols = c(2:4), ~ round(., 0))) %>% 
+  filter(`2021` == min(`2021`)))[1,1] %>% pull  
+
+max_2020 <- (vuelos_x_mes %>% mutate(across(.cols = c(2:4), ~ round(., 0))) %>% 
+  filter(`2020` == max(`2020`)))[1,3] %>% pull %>% format(., big.mark = ".")
+
+mes_max_2020 <- (vuelos_x_mes %>% mutate(across(.cols = c(2:4), ~ round(., 0))) %>% 
+  filter(`2020` == max(`2020`)))[[1,1]]  
+
+min_2020 <- (vuelos_x_mes %>% mutate(across(.cols = c(2:4), ~ round(., 0))) %>% 
+  filter(`2020` == min(`2020`)))[[1,3]] 
+
+mes_min_2020 <- (vuelos_x_mes %>% mutate(across(.cols = c(2:4), ~ round(., 0))) %>% 
+  filter(`2020` == min(`2020`)))[[1,1]] 
+
+```
+
+Con respecto a la distribución mensual de los vuelos de cabotaje, se observa para el año en curso una mayor cantidad de vuelos aterrizados en el mes de `r mes_max_2021` con `r max_2021` frecuencias totales y la menor para el mes de `r mes_min_2021` con `r min_2021`.
+Con respecto al año anterior, el máximo se encuentra en el mes de `r mes_max_2020` (`r max_2020`) y el mínimo en `r mes_min_2020` (`r min_2020`).
+
+```{r tabla-1}
+frq_reg_dest_21 <- cabotaje %>% 
+  filter(anio_local == 2021) %>% 
+  group_by(mes_local, region_destino, .drop = F) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>%
+  mutate(mes_local = lubridate::month(mes_local, label = T, abbr = F)) %>% 
+  pivot_wider(names_from = region_destino, values_from = frecuencias) %>% 
+  janitor::adorn_totals(where = "col") %>% 
+  rename("total_21" = Total) %>% 
+  mutate(total_21 = round(total_21, 0))
+
+frq_reg_dest_20 <- cabotaje %>% 
+  filter(anio_local == 2020) %>% 
+  group_by(mes_local, region_destino, .drop = F) %>% 
+  summarise(frecuencias = sum(vuelos)) %>% 
+  mutate(mes_local = lubridate::month(mes_local, label = T, abbr = F)) %>% 
+  pivot_wider(names_from = region_destino, values_from = frecuencias)
+
+frq_reg_dest_19 <- cabotaje %>% 
+  filter(anio_local == 2019) %>% 
+  group_by(mes_local, region_destino, .drop = F) %>% 
+  summarise(frecuencias = sum(vuelos)) %>% 
+  mutate(mes_local = lubridate::month(mes_local, label = T, abbr = F)) %>% 
+  pivot_wider(names_from = region_destino, values_from = frecuencias)
+
+frq_reg_dest_21 <- frq_reg_dest_21 %>% 
+  left_join(frq_reg_dest_20, by = "mes_local") %>% 
+  left_join(frq_reg_dest_19, by = "mes_local") %>%
+  janitor::clean_names() %>%
+  mutate(across(.cols = c(2:21), ~ replace_na(., 0)),
+         across(.cols = c(2:21), ~ as.numeric(.)),
+         var_inter_bsas = (buenos_aires_x/buenos_aires_y)-1,
+         var_inter_patagonia = (patagonia_x/patagonia_y)-1,
+         var_inter_caba = (caba_x/caba_y)-1,
+         var_inter_cordoba = (cordoba_x/cordoba_y)-1, 
+         var_inter_norte = (norte_x/norte_y)-1,
+         var_inter_cuyo = (cuyo_x/cuyo_y)-1,
+         var_inter_litoral = (litoral_x/litoral_y)-1,
+         var_inter_caba = if_else(!is.finite(var_inter_caba),
+                                  caba_x,
+                                  var_inter_caba),
+         var_inter_bsas_19 = (buenos_aires_x/buenos_aires)-1,
+         var_inter_patagonia_19 = (patagonia_x/patagonia)-1,
+         var_inter_caba_19 = (caba_x/caba)-1,
+         var_inter_cordoba_19 = (cordoba_x/cordoba)-1,
+         var_inter_norte_19 = (norte_x/norte)-1,
+         var_inter_cuyo_19 = (cuyo_x/cuyo)-1,
+         var_inter_litoral_19 = (litoral_x/litoral)-1,
+         var_inter_caba_19 = if_else(!is.finite(var_inter_caba_19),
+                                  caba_x,
+                                  var_inter_caba_19)) %>% 
+    ungroup() %>% 
+  mutate(across(.cols = everything(.), ~ replace(., is.infinite(.), 0)),
+         across(.cols = contains("_x"), ~round(., 0))) %>%
+  select(-c(16:23)) %>% 
+  select(-contains("_y")) 
+
+col_order <- c(1, 9, 2, 10, 17, 3, 13, 20, 8, 12, 19, 7, 11, 18, 5, 16, 23, 4, 15, 22, 6, 14, 21)
+
+frq_reg_dest_21 <- frq_reg_dest_21[, col_order]
+
+tabla_1_aerocomercial <- frq_reg_dest_21 %>%
+  mutate(mes_local = str_to_title(mes_local)) %>% 
+  ungroup() %>% 
+  gt() %>% 
+  # tab_header(
+  #   #title = md("__FRECUENCIAS AÉREAS DE VUELOS DE CABOTAJE POR REGIÓN DE DESTINO SEGÚN MES__"),
+  #   subtitle = "2021") %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  tab_source_note(
+    source_note = md("**Nota:** El Aeroparque Jorge Newbery se mantuvo cerrado por reformas entre agosto 2020 y febrero 2021.")) %>% 
+  cols_label(
+    mes_local = md("**Mes**"),
+    total_21 = md("**Vuelos totales**"),
+    caba_x = md("**Vuelos***"),
+    var_inter_caba = md("**var % i.a***"),
+    var_inter_caba_19 = md("**var % vs 2019***"),
+    buenos_aires_x = md("**Vuelos**"),
+    var_inter_bsas = md("**var % i.a**"),
+    var_inter_bsas_19 = md("**var % vs 2019**"),
+    cordoba_x = md("**Vuelos**"),
+    var_inter_cordoba = md("**var % i.a**"),
+    var_inter_cordoba_19 = md("**var % vs 2019**"),
+    litoral_x = md("**Vuelos**"),
+    var_inter_litoral = md("**var % i.a**"),
+    var_inter_litoral_19 = md("**var % vs 2019**"),
+    cuyo_x = md("**Vuelos**"),
+    var_inter_cuyo = md("**var % i.a**"),
+    var_inter_cuyo_19 = md("**var % vs 2019**"),
+    norte_x = md("**Vuelos**"),
+    var_inter_norte = md("**var % i.a**"),
+    var_inter_norte_19 = md("**var % vs 2019**"),
+    patagonia_x = md("**Vuelos**"),
+    var_inter_patagonia = md("**var % i.a**"),
+    var_inter_patagonia_19 = md("**var % vs 2019**")) %>% 
+  cols_align(
+    align = "center",
+    columns = everything())  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  fmt_percent(columns = c(4, 5, 7, 8, 10, 11, 13, 14, 16, 17, 19, 20, 22, 23), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+    tab_spanner(
+    label = "CABA",
+    columns = c(caba_x,
+                var_inter_caba,
+                var_inter_caba_19)
+    ) %>% 
+    tab_spanner(
+    label = "Buenos Aires",
+    columns = c(buenos_aires_x,
+                var_inter_bsas,
+                var_inter_bsas_19)
+    ) %>% 
+      tab_spanner(
+    label = "Córdoba",
+    columns = c(cordoba_x,
+                var_inter_cordoba,
+                var_inter_cordoba_19)
+    ) %>% 
+      tab_spanner(
+    label = "Litoral",
+    columns = c(litoral_x,
+                var_inter_litoral,
+                var_inter_litoral_19)
+    ) %>% 
+      tab_spanner(
+    label = "Cuyo",
+    columns = c(cuyo_x,
+                var_inter_cuyo,
+                var_inter_cuyo_19)
+    ) %>% 
+      tab_spanner(
+    label = "Norte",
+    columns = c(norte_x,
+                var_inter_norte,
+                var_inter_norte_19)
+    ) %>%
+      tab_spanner(
+    label = "Patagonia",
+    columns = c(patagonia_x,
+                var_inter_patagonia,
+                var_inter_patagonia_19)
+    ) %>% 
+  tab_style(style = cell_fill(color = dnmye_colores("gris claro")),
+           locations = cells_body(columns = c(3, 6, 9, 12, 15, 18, 21))
+           ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")),
+    locations = cells_column_spanners(spanners = everything())
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_caba_19,
+      rows = var_inter_caba_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_caba_19,
+      rows = var_inter_caba_19 > 0)
+    ) %>% 
+tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_caba,
+      rows = var_inter_caba < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_caba,
+      rows = var_inter_caba > 0)
+    ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_bsas_19,
+      rows = var_inter_bsas_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_bsas_19,
+      rows = var_inter_bsas_19 > 0)
+    ) %>%
+    tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_bsas,
+      rows = var_inter_bsas < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_bsas,
+      rows = var_inter_bsas > 0)
+    ) %>% 
+    tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_cordoba,
+      rows = var_inter_cordoba < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_cordoba,
+      rows = var_inter_cordoba > 0)
+    ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_cordoba_19,
+      rows = var_inter_cordoba_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_cordoba_19,
+      rows = var_inter_cordoba_19 > 0)
+    ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_litoral,
+      rows = var_inter_litoral < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_litoral,
+      rows = var_inter_litoral > 0)
+    ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_litoral_19,
+      rows = var_inter_litoral_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_litoral_19,
+      rows = var_inter_litoral_19 > 0)
+    ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_norte_19,
+      rows = var_inter_norte_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_norte_19,
+      rows = var_inter_norte_19 > 0)
+    ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_norte,
+      rows = var_inter_norte < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_norte,
+      rows = var_inter_norte > 0)
+    ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_patagonia,
+      rows = var_inter_patagonia < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_patagonia,
+      rows = var_inter_patagonia > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_patagonia_19,
+      rows = var_inter_patagonia_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_patagonia_19,
+      rows = var_inter_patagonia_19 > 0)
+    ) %>%
+  tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_cuyo_19,
+      rows = var_inter_cuyo_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_cuyo_19,
+      rows = var_inter_cuyo_19 > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_cuyo,
+      rows = var_inter_cuyo < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_cuyo,
+      rows = var_inter_cuyo > 0)
+    ) %>% 
+  tab_caption(glue("Vuelos de cabotaje por región de destino según mes. Años {anio-2} a {anio}."))
+
+tabla_1_aerocomercial
+
+```
+
+<br>
+
+```{r}
+freq_prov_text <- cabotaje %>% 
+  group_by(anio_local, region_destino) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(pct = round(frecuencias/frecuencias_totales*100, 1))
+
+region_max_21 <- freq_prov_text %>% 
+  filter(anio_local == max(anio_local)) %>% 
+  filter(pct == max(pct))
+
+region_max_2021_label <- region_max_21[,2] %>% pull
+region_max_vuelos_2021_label <- region_max_21[,5] %>% pull %>% format(., decimal.mark = ",")
+
+region_min_21 <- freq_prov_text %>% 
+  filter(anio_local == max(anio_local)) %>% 
+  filter(pct == min(pct))
+
+region_min_2021_label <- region_min_21[,2] %>% pull
+region_min_vuelos_2021_label <- region_min_21[,5] %>% pull %>% format(., decimal.mark = ",")
+
+
+
+```
+
+Del análisis del número de vuelos de cabotaje en el año `r as.character(anio)`, según región de destino, se observa que **`r region_max_2021_label`** concentra el `r region_max_vuelos_2021_label`% de los arribos.
+Por su parte, la región de menor afluencia fue la **Región `r region_min_2021_label`** con una cuota de mercado del `r region_min_vuelos_2021_label`%.
+
+<br>
+
+```{r grafico-3, fig.cap= glue("Vuelos de cabotaje por región de destino. Años {anio-2} a {anio}.")}
+
+cabotaje %>% 
+  group_by(anio_local, region_destino) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(pct = round(frecuencias/frecuencias_totales*100, 1)) %>% 
+  ggplot(aes(x = reorder(region_destino, -frecuencias), y = pct)) +
+  geom_bar(aes(fill = region_destino), stat = "identity", show.legend = F) +
+  geom_text(aes(label = paste0(format(pct, decimal.mark = ","), "%"), vjust = -.5),
+            size = 2.5, position = position_dodge(width = 0.5)#,
+            #label.padding = unit(0.1, 'lines'), label.size = .01
+            ) +
+  facet_grid(~ anio_local) +
+  scale_y_continuous(limits = c(0, 50),
+                     labels = function(x) paste0(x, "%")) +
+  # scale_x_discrete(labels = function(empresa_agrup_def) str_wrap(empresa_agrup_def, width = 10))+
+  scale_fill_dnmye(palette = "cualitativa")+
+  labs(#title = "Frecuencias aéreas de vuelos de cabotaje por región de destino.",
+       #subtitle = "Años 2019/2021",
+       y = "Distribución porcentual",
+       x = "",
+       fill = "",
+       caption = "Fuente: DNMyE en base a información de ANAC.") +
+  theme_minimal()+
+  theme(strip.text = element_text(face = "bold"),
+        axis.text.x = element_text(angle = 45,
+                                   hjust = 1))
+```
+<br>
+
+```{r}
+freq_reg_prov_loc <- cabotaje %>% 
+  filter(anio_local == max(anio_local)) %>% 
+  mutate(region_destino = paste("Región", region_destino)) %>% 
+  group_by(mes_local, region_destino, destino_provincia_etiqueta, destino_localidad_etiqueta, .drop = F) %>% 
+  summarise(frecuencias = round(sum(vuelos, na.rm = T), 0)) %>% 
+  mutate(mes_local = lubridate::month(mes_local, label = T, abbr = F)) %>% 
+  pivot_wider(names_from = mes_local, values_from = frecuencias) %>%
+  ungroup() %>% 
+  mutate(across(.cols = c(4:15), ~ replace_na(., 0))) %>%
+  janitor::adorn_totals() %>% 
+  janitor::adorn_totals(where = "col") %>% 
+  filter(Total>=40) %>%
+  arrange(region_destino, destino_provincia_etiqueta, -Total) %>% 
+  group_by(region_destino) %>% 
+  top_n(1, Total)
+
+freq_bs_as_loc <- freq_reg_prov_loc[1,3] %>% pull
+freq_bs_as <- freq_reg_prov_loc[1,16] %>% pull %>% format(., big.mark = ".")
+
+freq_caba_loc <- freq_reg_prov_loc[2,3] %>% pull
+freq_caba <- freq_reg_prov_loc[2,16] %>% pull %>% format(., big.mark = ".")
+
+freq_cordoba_loc <- freq_reg_prov_loc[3,3] %>% pull
+freq_cordoba <- freq_reg_prov_loc[3,16] %>% pull %>% format(., big.mark = ".")
+
+freq_cuyo_loc <- freq_reg_prov_loc[4,3] %>% pull
+freq_cuyo <- freq_reg_prov_loc[4,16] %>% pull %>% format(., big.mark = ".")
+
+freq_litoral_loc <- freq_reg_prov_loc[5,3] %>% pull
+freq_litoral <- freq_reg_prov_loc[5,16] %>% pull %>% format(., big.mark = ".")
+
+freq_norte_loc <- freq_reg_prov_loc[6,3] %>% pull
+freq_norte <- freq_reg_prov_loc[6,16] %>% pull %>% format(., big.mark = ".")
+
+freq_patagonia_loc <- freq_reg_prov_loc[7,3] %>% pull
+freq_patagonia <- freq_reg_prov_loc[7,16] %>% pull %>% format(., big.mark = ".")
+```
+
+En lo referente a los vuelos aterrizados en cada una de las provincias que componen las regiones turísticas del país, se desprende que de la **región Buenos Aires**, **`r freq_bs_as_loc`** es la localidad que más vuelos recibe (`r freq_bs_as` frecuencias); de la **región Córdoba**, **`r freq_cordoba_loc`** (`r freq_cordoba` frecuencias); de la **región Cuyo, `r freq_cuyo_loc`** (`r freq_cuyo` frecuencias); de la **región Litoral, `r freq_litoral_loc`** (`r freq_litoral` frecuencias); de la **región Norte, `r freq_norte_loc`** (`r freq_norte` frecuencias); y, por último, de la **región Patagonia, `r freq_patagonia_loc`** (`r freq_patagonia` frecuencias).
+
+```{r tabla-2}
+freq_reg_prov_loc <- cabotaje %>% 
+  filter(anio_local == max(anio_local)) %>% 
+  mutate(region_destino = paste("Región", region_destino)) %>% 
+  group_by(mes_local, region_destino, destino_provincia_etiqueta, destino_localidad_etiqueta, .drop = F) %>% 
+  summarise(frecuencias = round(sum(vuelos, na.rm = T), 0)) %>% 
+  mutate(mes_local = lubridate::month(mes_local, label = T, abbr = F)) %>% 
+  pivot_wider(names_from = mes_local, values_from = frecuencias) %>%
+  ungroup() %>% 
+  mutate(across(.cols = c(4:15), ~ replace_na(., 0))) %>%
+  janitor::adorn_totals() %>% 
+  janitor::adorn_totals(where = "col") %>% 
+  filter(Total>=40) %>%
+  arrange(region_destino, destino_provincia_etiqueta, -Total) %>% 
+  select(-Total) 
+
+tabla_2_aerocomercial <- freq_reg_prov_loc %>% 
+  group_by(region_destino) %>% 
+  gt() %>% 
+   # tab_header(
+   #  title = md("__FRECUENCIAS AÉREAS MENSUALES DE VUELOS DE CABOTAJE POR REGIÓN, PROVINCIA Y CIUDAD DE DESTINO__"),
+   #  subtitle = "2021") %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  tab_source_note(
+    source_note = md("**Nota:** El Aeroparque Jorge Newbery se mantuvo cerrado por reformas entre agosto 2020 y febrero 2021.")) %>% 
+  cols_label(
+    destino_provincia_etiqueta = md("**Provincia**"),
+    destino_localidad_etiqueta = md("**Localidad**"),
+    enero = md("**Enero**"),
+    febrero = md("**Febrero**"),
+    marzo = md("**Marzo**"),
+    abril = md("**Abril**"),
+    mayo = md("**Mayo**"),
+    junio = md("**Junio**"),
+    julio = md("**Julio**"),
+    agosto = md("**Agosto**"),
+    septiembre = md("**Septiembre**"),
+    octubre = md("**Octubre**"),
+    noviembre = md("**Noviembre**"),
+    diciembre = md("**Diciembre**")) %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  tab_style(style = cell_fill(color = dnmye_colores("gris claro")),
+            locations = cells_row_groups()) %>% 
+  tab_caption(glue("Frecuencias aéreas mensuales de vuelos de cabotaje por región, provincia y ciudad de destino. Año {anio}"))
+
+tabla_2_aerocomercial %>% 
+  tab_options(container.height = 600,
+  container.overflow.y = TRUE)
+
+```
+
+<br>
+
+```{r}
+freq_ciudad_dest_21 <- cabotaje %>% 
+  filter(anio_local == 2021) %>% 
+  group_by(destino_localidad_etiqueta) %>% 
+  summarise(frecuencias_21 = sum(vuelos)) %>% 
+  ungroup() %>% 
+  arrange(desc(frecuencias_21)) %>% 
+  mutate(posicion_21 = 1:n(),
+         participacion_21 = round(frecuencias_21/sum(frecuencias_21), 2))
+
+freq_ciudad_dest_20 <- cabotaje %>% 
+  filter(anio_local == 2020) %>% 
+  group_by(destino_localidad_etiqueta) %>%   
+  summarise(frecuencias_20 = sum(vuelos)) %>% 
+  ungroup() %>% 
+  arrange(desc(frecuencias_20)) %>% 
+  mutate(posicion_20 = 1:n())
+
+freq_ciudad_dest_19 <- cabotaje %>% 
+  filter(anio_local == 2019) %>% 
+  group_by(destino_localidad_etiqueta) %>%   
+  summarise(frecuencias_19 = sum(vuelos)) %>% 
+  ungroup() %>% 
+  arrange(desc(frecuencias_19)) %>% 
+  mutate(posicion_19= 1:n())
+
+freq_ciudad_dest_21 <- freq_ciudad_dest_21 %>% 
+  full_join(freq_ciudad_dest_20, by = "destino_localidad_etiqueta") %>% 
+  full_join(freq_ciudad_dest_19, by = "destino_localidad_etiqueta") %>% 
+  filter(!is.na(posicion_21) & !is.na(posicion_20) & !is.na(posicion_19)) %>% 
+  mutate(variacion = round((frecuencias_21-frecuencias_20)/frecuencias_20, 2),
+         variacion_19 = round((frecuencias_21-frecuencias_19)/frecuencias_19, 2),
+         destino_localidad_etiqueta = case_when(posicion_21 >= 20 ~ "Resto",
+                                                T ~ destino_localidad_etiqueta)) %>%
+  group_by(destino_localidad_etiqueta) %>% 
+  summarise(frecuencias_21 = sum(frecuencias_21),
+            frecuencias_20 = sum(frecuencias_20),
+            frecuencias_19 = sum(frecuencias_19),
+            posicion_21 = first(posicion_21),
+            posicion_20 = first(posicion_20),
+            posicion_19 = first(posicion_19)) %>% 
+  mutate(variacion = (frecuencias_21-frecuencias_20)/frecuencias_20,
+         variacion_19 = (frecuencias_21-frecuencias_19)/frecuencias_19,
+         participacion_21 = frecuencias_21/sum(frecuencias_21),
+         posicion_21 = case_when(destino_localidad_etiqueta == "Resto" ~ "-",
+                                             T ~ as.character(posicion_21)),
+         posicion_20 = case_when(destino_localidad_etiqueta == "Resto" ~ "-",
+                                             T ~ as.character(posicion_20)),
+         posicion_19 = case_when(destino_localidad_etiqueta == "Resto" ~ "-",
+                                             T ~ as.character(posicion_19))) %>%
+  arrange(-frecuencias_21)
+
+col_order <- c("destino_localidad_etiqueta",
+               "posicion_21",
+               "posicion_20",
+               "posicion_19",
+               "frecuencias_21",
+               "frecuencias_20",
+               "frecuencias_19",
+               "variacion",
+               "variacion_19",
+               "participacion_21")
+
+freq_ciudad_dest_21 <- freq_ciudad_dest_21[, col_order]
+
+resto <- freq_ciudad_dest_21 %>% 
+  filter(destino_localidad_etiqueta == "Resto")
+
+freq_ciudad_dest_21 <- freq_ciudad_dest_21 %>% 
+  filter(destino_localidad_etiqueta != "Resto") %>% 
+  rbind(resto) %>% 
+  mutate(across(.cols = contains("frecuencias_"), ~ round(., 0)))
+
+primer_dest <- freq_ciudad_dest_21[1,1] %>% pull
+segundo_dest <- freq_ciudad_dest_21[2,1] %>% pull
+tercer_dest <- freq_ciudad_dest_21[3,1] %>% pull
+
+freq_primer_dest <- freq_ciudad_dest_21[1,5] %>% pull %>%  format(., big.mark = ".")
+freq_segundo_dest <- freq_ciudad_dest_21[2,5] %>% pull %>%  format(., big.mark = ".")
+freq_tercer_dest <- freq_ciudad_dest_21[3,5] %>% pull %>%  format(., big.mark = ".")
+
+top_dest <- freq_ciudad_dest_21 %>% 
+  filter(destino_localidad_etiqueta != "Resto") %>% 
+  top_n(3, variacion) %>% 
+  arrange(-variacion) %>% 
+  select(destino_localidad_etiqueta, variacion) %>% 
+  mutate(variacion = round(variacion*100, 1),
+         variacion = paste0(format(variacion, decimal.mark = ","), "%"))
+
+top_primer_dest <- top_dest[1,1] %>% pull
+top_segundo_dest <- top_dest[2,1] %>% pull
+top_tercer_dest <- top_dest[3,1] %>% pull
+
+top_freq_primer_dest <- top_dest[1,2] %>% pull
+top_freq_segundo_dest <- top_dest[2,2] %>% pull
+top_freq_tercer_dest <- top_dest[3,2] %>% pull
+
+not_top_dest <- freq_ciudad_dest_21 %>% 
+  filter(destino_localidad_etiqueta != "Resto") %>% 
+  top_n(-3, variacion) %>% 
+  arrange(-variacion) %>% 
+  select(destino_localidad_etiqueta, variacion) %>% 
+  mutate(variacion = round(variacion*100, 1),
+         variacion = paste0(format(variacion, decimal.mark = ","), "%"))
+
+not_top_primer_dest <- not_top_dest[3,1] %>% pull
+not_top_segundo_dest <- not_top_dest[2,1] %>% pull
+not_top_tercer_dest <- not_top_dest[1,1] %>% pull
+
+not_top_freq_primer_dest <- not_top_dest[3,2] %>% pull
+not_top_freq_segundo_dest <- not_top_dest[2,2] %>% pull 
+not_top_freq_tercer_dest <- not_top_dest[1,2] %>% pull
+
+```
+
+El ranking entre las ciudades con mayor cantidad de vuelos de cabotaje para el año `r as.character(anio)` ubican a **`r primer_dest`, `r segundo_dest` y `r tercer_dest`**, en dicho orden, como los principales destinos con `r freq_primer_dest`, `r freq_segundo_dest` y `r freq_tercer_dest`, respectivamente.
+
+Dentro de los 20 destinos más importantes del año, **`r top_primer_dest`, `r top_segundo_dest` y `r top_tercer_dest`** son aquellos que más crecieron con respecto al año anterior, con un aumento del `r top_freq_primer_dest`, `r top_freq_segundo_dest` y `r top_freq_tercer_dest`, respectivamente.
+Contrariamente, aquellos que menos crecieron (o decrecieron) fueron **`r not_top_primer_dest`** (`r not_top_freq_primer_dest`), **`r not_top_segundo_dest`** (`r not_top_freq_primer_dest`) y **`r not_top_tercer_dest` (`r not_top_freq_primer_dest`)**.
+
+```{r tabla-3 }
+tabla_3_aerocomercial <- freq_ciudad_dest_21 %>%
+  gt() %>% 
+  # tab_header(
+  #   title = md("__RANKING DE FRECUENCIAS AÉREAS DE VUELOS DE CABOTAJE POR CIUDAD DE DESTINO__")) %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  cols_label(
+    destino_localidad_etiqueta = md("**Ciudad**"),
+    posicion_21 = md("**2021**"),
+    posicion_20 = md("**2020**"),
+    posicion_19 = md("**2019**"),
+    frecuencias_21 = md("**2021**"),
+    frecuencias_20 = md("**2020**"),
+    frecuencias_19 = md("**2019**"),
+    variacion = md("**var % i.a**"),
+    variacion_19 = md("**var % vs 2019**"),
+    participacion_21 = md("**Participación 2021 (%)**")) %>% 
+  cols_align(
+    align = "center",
+    columns = everything())  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  fmt_percent(columns = c(8 : 10), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_spanner(
+    label = "Posición",
+    columns = contains("posicion"))%>% 
+  tab_spanner(
+    label = "Frecuencias",
+    columns = contains("frecuencias")
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")),
+    locations = cells_column_spanners(spanners = everything())
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = variacion,
+      rows = variacion < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = variacion,
+      rows = variacion > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = variacion_19,
+      rows = variacion_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = variacion_19,
+      rows = variacion_19 > 0)
+    ) %>% 
+  tab_caption(glue("Ranking de ciudades de destino por vuelos de cabotaje. Años {anio-2} a {anio}."))
+
+tabla_3_aerocomercial %>% 
+  tab_options(container.height = 600,
+  container.overflow.y = TRUE)
+
+```
+
+<br>
+
+```{r}
+aerolineas_freq <- cabotaje %>% 
+  mutate(empresa_agrup_def = if_else(! empresa_agrup_def %in% c("Aerolíneas Argentinas",
+                                                                "Flybondi",
+                                                                "JetSMART Airlines",
+                                                                "LADE - Líneas Aéreas Del Estado"),
+                                     "Otras aerolíneas",
+                                     empresa_agrup_def)) %>% 
+  group_by(anio_local, empresa_agrup_def) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = round(sum(frecuencias, na.rm = T),0)) %>% 
+  ungroup() %>% 
+  mutate(pct = round(frecuencias/frecuencias_totales*100, 1),
+         frecuencias = round(frecuencias, 0)) %>% 
+  filter(anio_local == anio) %>% 
+  arrange(-frecuencias)
+
+primer_aero <- aerolineas_freq[1,2] %>% pull
+segundo_aero <- aerolineas_freq[2,2] %>% pull
+tercer_aero <- aerolineas_freq[3,2] %>% pull
+
+freq_primer_aero <- aerolineas_freq[1,5] %>% pull %>% format(., decimal.mark = ",") %>% paste0(., "%")
+freq_segundo_aero <- aerolineas_freq[2,5] %>% pull %>% format(., decimal.mark = ",") %>% paste0(., "%")
+freq_tercer_aero <- aerolineas_freq[3,5] %>% pull %>% format(., decimal.mark = ",") %>% paste0(., "%")
+
+freq_abs_primer_aero <- aerolineas_freq[1,3] %>% pull %>% format(., big.mark = ".") 
+freq_abs_segundo_aero <- aerolineas_freq[2,3] %>% pull %>% format(., big.mark = ".") 
+freq_abs_tercer_aero <- aerolineas_freq[3,3] %>% pull %>% format(., big.mark = ".") 
+
+```
+
+Al observar los vuelos de cabotaje según compañía aérea, **`r primer_aero`**, fue la que registró mayor cantidad de vuelos, explicando el `r freq_primer_aero` de las frecuencias aéreas de cabotaje del país (`r freq_abs_primer_aero`).
+Le siguen **`r segundo_aero`** con `r freq_segundo_aero` (`r freq_abs_segundo_aero` frecuencias) y **`r tercer_aero`** con `r freq_tercer_aero` (`r freq_abs_tercer_aero`).
+
+<br>
+
+```{r grafico-4, fig.cap= glue("Vuelos de cabotaje, distribución porcentual por compañía aérea. Años {anio-2} a {anio}.")}
+cabotaje %>% 
+  mutate(empresa_agrup_def = if_else(! empresa_agrup_def %in% c("Aerolíneas Argentinas",
+                                                                "Flybondi",
+                                                                "JetSMART Airlines",
+                                                                "LADE - Líneas Aéreas Del Estado"),
+                                     "Otras aerolíneas",
+                                     empresa_agrup_def)) %>% 
+  group_by(anio_local, empresa_agrup_def) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(pct = round(frecuencias/frecuencias_totales*100, 1)) %>% 
+  ggplot(aes(x = factor(empresa_agrup_def, labels = c("Aerolíneas Argentinas",
+                                                      "Flybondi",
+                                                      "JetSMART Airlines",
+                                                      "LADE - Líneas Aéreas del Estado",
+                                                      "Otras Aerolíneas")),
+             y = pct)) +
+  geom_bar(aes(fill = empresa_agrup_def), stat = "identity", show.legend = F) +
+  geom_label(aes(y = pct+5, label = paste0(format(pct, decimal.mark = ","), "%")),
+             size = 2.5) +
+  facet_grid(~ anio_local) +
+  scale_y_continuous(limits = c(0, 100),
+                     labels = function(x) paste0(x, "%")) +
+  scale_x_discrete(labels = function(empresa_agrup_def) str_wrap(empresa_agrup_def, width = 25))+
+  scale_fill_dnmye(palette = "cualitativa")+
+  labs(#title = "Frecuencias aéreas de vuelos de cabotaje por región de destino.",
+       # subtitle = "Años 2019/2021",
+       y = "Distribución porcentual",
+       x = "",
+       fill = "",
+       caption = "Fuente: DNMyE en base a información de ANAC.") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 7,
+                                   angle = 45,
+                                   hjust = 1))
+
+```
+
+<br>
+
+```{r}
+destinos_aero <- cabotaje %>% 
+  filter(anio_local == anio) %>% 
+  mutate(empresa_agrup_def = if_else(! empresa_agrup_def %in% c("Aerolíneas Argentinas",
+                                                                "Flybondi",
+                                                                "JetSMART Airlines",
+                                                                "LADE - Líneas Aéreas Del Estado"),
+                                     "Otras aerolíneas",
+                                     empresa_agrup_def)) %>%
+  group_by(empresa_agrup_def, destino_localidad_etiqueta) %>%
+  summarise(frecuencias = round(sum(vuelos, na.rm = T), 0)) %>% 
+  filter(frecuencias >= 12) %>% 
+  group_by(empresa_agrup_def) %>%
+  summarise(destinos = n_distinct(destino_localidad_etiqueta)) %>% 
+  arrange(-destinos) 
+
+primera_aero <- destinos_aero[1,1] %>% pull
+primera_aero_destinos <- destinos_aero[1,2] %>% pull
+
+segunda_aero <- destinos_aero[2,1] %>% pull
+segunda_aero_destinos <- destinos_aero[2,2] %>% pull
+
+tercera_aero <- destinos_aero[3,1] %>% pull
+tercera_aero_destinos <- destinos_aero[3,2] %>% pull
+
+LADE_destinos <- (destinos_aero %>% filter(empresa_agrup_def == "LADE - Líneas Aéreas Del Estado"))[1,2] %>% pull
+  
+
+```
+
+En relación a las ciudades de destino por compañía aérea, se observó que **`r primera_aero`** es la principal compañía aérea del país, conectando con `r primera_aero_destinos` localidades a lo largo de todo el territorio nacional.
+En segundo lugar, le sigue **`r segunda_aero`**, con `r segunda_aero_destinos` destinos, y, en tercer lugar, **`r tercera_aero`** con `r tercera_aero_destinos`.
+Por su parte, **LADE - Líneas Aéreas del Estado** ofrece vuelos hacia `r LADE_destinos` ciudades.
+
+```{r tabla-4 }
+frq_linea_ciudad <- cabotaje %>% 
+  filter(anio_local == anio) %>% 
+  mutate(empresa_agrup_def = if_else(! empresa_agrup_def %in% c("Aerolíneas Argentinas",
+                                                                "Flybondi",
+                                                                "JetSMART Airlines",
+                                                                "LADE - Líneas Aéreas Del Estado"),
+                                     "Otras aerolíneas",
+                                     empresa_agrup_def)) %>% 
+  group_by(empresa_agrup_def, destino_localidad_etiqueta) %>% 
+  summarise(frecuencias = round(sum(vuelos, na.rm = T), 0)) %>% 
+  filter(frecuencias >= 12) %>%
+  pivot_wider(names_from = empresa_agrup_def, values_from = frecuencias) %>% 
+  mutate(across(.cols = c(2:5), ~ replace_na(., replace = 0))) %>% 
+  janitor::adorn_totals(where = "col") %>% 
+  arrange(-Total) 
+
+tabla_4_aerocomercial <- frq_linea_ciudad %>%
+  gt() %>% 
+  # tab_header(
+  #   #title = md("__RANKING DE FRECUENCIAS AÉREAS DE VUELOS DE CABOTAJE POR CIUDAD DE DESTINO__"),
+  #   subtitle = md("__2021__") ) %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  cols_label(
+    destino_localidad_etiqueta = md("**Ciudad**"),
+    `Aerolíneas Argentinas` = md("**Aerolíneas Argentinas**"),
+    Flybondi = md("**Flybondi**"),
+    `JetSMART Airlines` = md("**JetSMART Airlines**"),
+    `LADE - Líneas Aéreas Del Estado` = md("**LADE**"),
+    Total = md("**Total**")) %>% 
+  cols_align(
+    align = "center",
+    columns = c(2:6))  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  tab_style(
+    style = cell_fill(color = dnmye_colores("gris claro")),
+      locations = cells_body(columns = 6)) %>%
+  tab_caption(glue("Vuelos de cabotaje por compañía aérea, según ciudad de destino. Año {anio}."))
+
+tabla_4_aerocomercial %>% 
+  tab_options(container.height = 600,
+  container.overflow.y = TRUE)
+
+```
+
+<br>
+
+A continuación, se describe un gráfico de concentración para las distintas regiones en el año `r as.character(anio)`.
+Esta visualización representa la participación acumulada de vuelos de cabotaje en cada región de destino; si todas las regiones recibiesen la misma cantidad de vuelos aterrizados, se observarían 7 compartimentos iguales (de alrededor de un 15% de los vuelos cada uno).
+Como se percibe, en el año `r as.character(anio)`, la distribución de los vuelos de cabotaje según región de destino no fue equitativa dado que aproximadamente el 50% de los arribos se concentraron mayormente en la **CABA y Patagonia**, como sucedió en los años anteriores.
+
+<br>
+
+```{r grafico-5, fig.cap = glue("Proporción de vuelos de cabotaje por región de destino. Años {anio-2} a {anio}.")}
+cabotaje %>% 
+  group_by(anio_local, region_destino) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(pct = round((frecuencias/frecuencias_totales)*100, 1)) %>% 
+  ggplot(aes(x = anio_local, y = pct, group = reorder(region_destino, pct))) +
+  geom_col(aes(fill = region_destino),
+           position = position_stack())+
+  geom_label(aes(label = paste(format(pct, decimal.mark = ","), "%", sep = "")),
+             position = position_stack(vjust = 0.5),
+             size = 2.5) +
+  scale_y_continuous(breaks = seq(0, 100, 50),
+                     labels = function(x) paste0(x, "%"))+
+  scale_fill_dnmye(palette = "cualitativa")+
+  labs(#title = "Proporción de frecuencias aéreas de vuelos de cabotaje por región de destino.",
+       y = "",
+       x = "",
+       fill = "",
+       caption = "Fuente: DNMyE en base a información de ANAC.") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  coord_flip()+
+  guides(fill = guide_legend(nrow = 1, reverse = F))
+
+```
+
+<br>
+
+```{r}
+herfintal_prov_19 <- cabotaje %>% 
+  filter(anio_local == 2019) %>% 
+  group_by(anio_local, destino_provincia_etiqueta) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_19 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_19 = round(sum(cuota_19^2), 3)) %>% 
+  select(destino_provincia_etiqueta, cuota_19, herfindal_19)
+
+herfintal_prov_20 <- cabotaje %>% 
+  filter(anio_local == 2020) %>% 
+  group_by(anio_local, destino_provincia_etiqueta) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_20 = round((frecuencias/frecuencias_totales), 2),
+         herfindal_20 = round(sum(cuota_20^2), 3)) %>% 
+  select(destino_provincia_etiqueta, cuota_20, herfindal_20)
+
+herfintal_prov_21 <- cabotaje %>% 
+  filter(anio_local == 2021) %>% 
+  group_by(anio_local, destino_provincia_etiqueta) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_21 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_21 = round(sum(cuota_21^2), 3)) %>% 
+  select(destino_provincia_etiqueta, cuota_21, herfindal_21)
+
+herfindal_prov1 <- data.table("destino_provincia_etiqueta" = "Índice de Herfindahl",
+                              "cuota_19" = herfintal_prov_19$herfindal_19[1],
+                              "cuota_20" = herfintal_prov_20$herfindal_20[1],
+                              "cuota_21" = herfintal_prov_21$herfindal_21[1]) 
+
+herfindal_prov2 <- herfintal_prov_19 %>% 
+  left_join(herfintal_prov_20, by = "destino_provincia_etiqueta") %>% 
+  left_join(herfintal_prov_21, by = "destino_provincia_etiqueta") %>%
+  select(-contains("herfin")) %>% 
+  arrange(-cuota_19) %>% 
+  bind_rows(herfindal_prov1) 
+
+IH_anio_actual <- (herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 4] %>% pull %>% format(., decimal.mark = ",")
+IH_anio_pasado <- (herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 3] %>% pull %>% format(., decimal.mark = ",")
+IH_anio_base <- (herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 2] %>% pull %>% format(., decimal.mark = ",")
+
+IH_dif_vs_anio_anterior <- if_else(IH_anio_actual < IH_anio_pasado,
+                                   paste("decrecimiento de",((herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 4] %>% pull)-((herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 3] %>% pull), "p.p."),
+                                   paste("crecimiento de",((herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 4] %>% pull)-((herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 3] %>% pull), "p.p."))
+
+IH_dif_vs_anio_base <- if_else(IH_anio_actual < IH_anio_base,
+                                   paste("decrecimiento de", round(((herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 4] %>% pull)-((herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 2] %>% pull), 1), "p.p."),
+                                   paste("crecimiento de",((herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 4] %>% pull)-((herfindal_prov1 %>% 
+                     mutate(across(.cols = c(2:4), ~ .*100)))[1, 2] %>% pull), "p.p."))
+
+```
+
+Con el objetivo de medir la concentración de las frecuencias aéreas por provincia de destino, se construyó el Índice de Herfindahl (IH)[^07-transporte-aereo-1].
+Cuanto mayor es el valor del mismo, mayor es la concentración de los vuelos en determinadas provincias (se considera que toma valores altos cuando es mayor de 18%).
+En el `r as.character(anio)`, el IH fue del `r IH_anio_actual`% y presentó un `r IH_dif_vs_anio_anterior` respecto del año anterior y un `r IH_dif_vs_anio_base` en relación a 2019.
+
+[^07-transporte-aereo-1]: Este índice se obtiene sumando las cuotas de mercado de cada provincia elevada al cuadrado.
+
+```{r tabla-5 }
+tabla_5_aerocomercial <- herfindal_prov2 %>% 
+  gt() %>% 
+  # tab_header(
+  #   title = md("__ÍNDICE DE HERFINDAHL Y PARTICIPACIÓN PORCENTUAL DE LAS FRECUENCIAS AÉREAS DE VUELOS DE CABOTAJE POR PROVINCIA DE DESTINO__")) %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  cols_label(
+    destino_provincia_etiqueta = md("**Ciudad**"),
+    cuota_19 = md("**2019**"),
+    cuota_20 = md("**2020**"),
+    cuota_21 = md("**2021**")) %>% 
+  cols_align(
+    align = "center",
+    columns = c(2:4))  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  fmt_percent(columns = c(2:4), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_style(
+    style = list(
+      cell_fill(color = dnmye_colores("gris claro"))),
+      locations = cells_body(
+      rows = destino_provincia_etiqueta == "Índice de Herfindahl")) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")),
+    locations = cells_body(
+      rows = destino_provincia_etiqueta == "Índice de Herfindahl")) %>% 
+  tab_caption(glue("Índice de Herfindahl y participación porcentual de las vuelos de cabotaje por provincia de destino. Años {anio-2} a {anio}."))
+
+tabla_5_aerocomercial %>% 
+  tab_options(container.height = 600,
+  container.overflow.y = TRUE)
+
+```
+
+<br>
+
+```{r}
+herfintal_aerolinea_19 <- cabotaje %>% 
+  filter(anio_local == 2019) %>%
+  mutate(empresa_agrup_def = if_else(! empresa_agrup_def %in% c("Aerolíneas Argentinas",
+                                                                "Flybondi",
+                                                                "JetSMART Airlines",
+                                                                "LADE - Líneas Aéreas Del Estado"),
+                                     "Otras aerolíneas",
+                                     empresa_agrup_def)) %>% 
+  group_by(anio_local, empresa_agrup_def) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_19 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_19 = round(sum(cuota_19^2), 3)) %>% 
+  select(empresa_agrup_def, cuota_19, herfindal_19)
+
+
+herfintal_aerolinea_20 <- cabotaje %>% 
+  filter(anio_local == 2020) %>%
+  mutate(empresa_agrup_def = if_else(! empresa_agrup_def %in% c("Aerolíneas Argentinas",
+                                                                "Flybondi",
+                                                                "JetSMART Airlines",
+                                                                "LADE - Líneas Aéreas Del Estado"),
+                                     "Otras aerolíneas",
+                                     empresa_agrup_def)) %>% 
+  group_by(anio_local, empresa_agrup_def) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_20 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_20 = round(sum(cuota_20^2), 3)) %>% 
+  select(empresa_agrup_def, cuota_20, herfindal_20)
+
+herfintal_aerolinea_21 <- cabotaje %>% 
+  filter(anio_local == 2021) %>%
+  mutate(empresa_agrup_def = if_else(! empresa_agrup_def %in% c("Aerolíneas Argentinas",
+                                                                "Flybondi",
+                                                                "JetSMART Airlines",
+                                                                "LADE - Líneas Aéreas Del Estado"),
+                                     "Otras aerolíneas",
+                                     empresa_agrup_def)) %>% 
+  group_by(anio_local, empresa_agrup_def) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_21 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_21 = round(sum(cuota_21^2), 3)) %>% 
+  select(empresa_agrup_def, cuota_21, herfindal_21)
+  
+herfintal_aerolinea<- data.table("empresa_agrup_def" = "Índice de Herfindahl",
+                                 "cuota_19" = herfintal_aerolinea_19$herfindal_19[1],
+                                 "cuota_20" = herfintal_aerolinea_20$herfindal_20[1],
+                                 "cuota_21" = herfintal_aerolinea_21$herfindal_21[1])
+
+herfintal_aerolinea2 <- herfintal_aerolinea_19 %>% 
+  left_join(herfintal_aerolinea_20, by = "empresa_agrup_def") %>% 
+  left_join(herfintal_aerolinea_21, by = "empresa_agrup_def") %>%
+  select(-contains("herfin")) %>% 
+  arrange(empresa_agrup_def) %>% 
+  bind_rows(herfintal_aerolinea) 
+
+IH_AA_anio_actual <- ((herfintal_aerolinea2 %>% filter(empresa_agrup_def == "Aerolíneas Argentinas"))[1, 4] %>% pull)*100
+
+IH_aero_anio_actual <- (herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 4] %>% pull %>% format(., decimal.mark = ",")
+IH_aero_anio_pasado <- (herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 3] %>% pull %>% format(., decimal.mark = ",")
+IH_aero_anio_base <- (herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 2] %>% pull %>% format(., decimal.mark = ",")
+
+IH_aero_dif_vs_anio_anterior <- if_else(IH_aero_anio_actual < IH_aero_anio_pasado,
+                                   paste("decrecimiento de",round(((herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 4] %>% pull)-((herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 3] %>% pull)), "p.p."),
+                                   paste("crecimiento de",round(((herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 4] %>% pull)-((herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 3] %>% pull)), "p.p."))
+
+IH_aero_dif_vs_anio_base <- if_else(IH_aero_anio_actual < IH_anio_base,
+                                   paste("decrecimiento de",round(((herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 4] %>% pull)-((herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 2] %>% pull)), "p.p."),
+                                   paste("crecimiento de",round(((herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 4] %>% pull)-((herfintal_aerolinea %>% mutate(across(.cols = c(2:4), ~ .*100)))[1, 2] %>% pull)), "p.p."))
+```
+
+En cuanto a la concentración de las frecuencias aéreas por compañía aérea, también se utilizó el IH.
+En el año `r as.character(anio)` se registró un valor cercano a `r IH_aero_anio_actual`%, lo que implica un `r IH_aero_dif_vs_anio_anterior` respecto al año anterior, y un `r IH_aero_dif_vs_anio_base` con respecto al 2019.
+En este marco, **Aerolíneas Argentinas** se posicionó como el principal actor del mercado, concentrando un `r IH_AA_anio_actual`% de las frecuencias aéreas totales de cabotaje al interior del país.
+
+```{r tabla-6}
+tabla_6_aerocomercial <- herfintal_aerolinea2 %>% 
+  gt() %>% 
+  # tab_header(
+  #   title = md("__ÍNDICE DE HERFINDAHL Y PARTICIPACIÓN PORCENTUAL DE LAS FRECUENCIAS AÉREAS DE VUELOS DE CABOTAJE POR COMPAÑÍA AÉREA__")) %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  cols_label(
+    empresa_agrup_def = md("**Ciudad**"),
+    cuota_19 = md("**2019**"),
+    cuota_20 = md("**2020**"),
+    cuota_21 = md("**2021**")) %>% 
+  cols_align(
+    align = "center",
+    columns = c(2:4))  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  fmt_percent(columns = c(2:4), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_style(
+    style = list(
+      cell_fill(color = dnmye_colores("gris claro"))),
+    locations = cells_body(
+      rows = empresa_agrup_def == "Índice de Herfindahl")) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")),
+    locations = cells_body(
+      rows = empresa_agrup_def == "Índice de Herfindahl")) %>% 
+  tab_caption(glue("Índice de herfindahl y participación porcentual de vuelos de cabotaje por compañía aérea. Años {anio-2} a {anio}."))
+
+tabla_6_aerocomercial
+
+```
+
+<br>
+
+## Transporte Aéreo Internacional
+
+```{r Filtro internacional}
+######## INTERNACIONAL
+internacional <- base_total %>% 
+  filter(clasificacion_vuelo == "Internacional") %>% 
+  filter(anio_local >= 2019 & anio_local <= 2021) 
+```
+
+```{r}
+vuelos_int <- internacional %>% 
+  filter(destino_pais_etiqueta == "Argentina") %>% 
+  group_by(anio_local, origen_pais_etiqueta, origen_localidad_etiqueta) %>% 
+  summarise(vuelos = sum(vuelos, na.rm = t)) %>% 
+  filter(vuelos >= 48) %>%
+  group_by(anio_local) %>% 
+  summarise(ciudades = n_distinct(origen_localidad_etiqueta),
+            pais = n_distinct(origen_pais_etiqueta))
+
+vuelos_int_ciudades <- vuelos_int[1,2] %>% pull
+
+vuelos_int_paises <- vuelos_int[1,3] %>% pull
+
+```
+
+```{r}
+vuelos_int_totales <- internacional %>% 
+  filter(destino_pais_etiqueta == "Argentina") %>% 
+  group_by(anio_local, origen_pais_etiqueta, origen_localidad_etiqueta) %>% 
+  mutate(vuelos_totales = sum(vuelos, na.rm = t)) %>% 
+  filter(vuelos_totales >= 48) %>%
+  ungroup() %>% 
+  group_by(anio_local) %>% 
+  summarise(vuelos = sum(vuelos, na.rm = T)) %>% 
+  pivot_wider(names_from = anio_local, values_from = vuelos) %>%
+  mutate(var_inter_anual = `2021`/`2020`*100-100,
+         var_inter_2019 = `2021`/`2019`*100-10) 
+
+vuelos_arribados <- vuelos_int_totales[,3] %>% pull %>% format(., big.mark = ".")
+vuelos_arribados_anterior <- vuelos_int_totales[,2] %>% pull %>% format(., big.mark = ".")
+vuelos_arribados_anteultimo <- vuelos_int_totales[,1] %>% pull %>% format(., big.mark = ".")
+
+vuelos_arribados_anterior_dif <- vuelos_int_totales[,4] %>% pull %>% abs() %>%round(1) %>% format(., big.mark = ".",decimal.mark=",") 
+
+condicion_vuelos_int <- if_else((vuelos_int_totales[,3] %>% pull)>( vuelos_int_totales[,2] %>% pull),
+                                "un aumento",
+                                "una caída")
+```
+
+En el año `r as.character(anio)`, la conectividad aérea hacia la Argentina se estableció con `r vuelos_int_ciudades` ciudades en `r vuelos_int_paises` países, a través de vuelos directos a las mismas.
+En dicho período, se registró un total de `r vuelos_arribados` vuelos internacionales que arribaron a Argentina, presentando `r condicion_vuelos_int` de `r vuelos_arribados_anterior_dif`%, en relación al año previo.
+
+```{r grafico-6, fig.cap = glue("Vuelos internacionales totales desde y hacia Argentina. Años 2017 a {anio}.")}
+# base_total %>%
+#   filter(clasificacion_vuelo == "Internacional") %>%
+#   filter(anio_local <= anio) %>%  
+#   group_by(anio_local, mes_local) %>% 
+#   summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+#   mutate(fecha = lubridate::my(paste0(mes_local,"-", anio_local)),
+#          frecuencias = round(frecuencias, 0)) %>% 
+#   ggplot(aes(x = fecha,
+#              y = frecuencias)) +
+#   geom_line(color = dnmye_colores("cian"),
+#             stat = "identity",
+#             size = 1.25)+
+#   geom_point(color = dnmye_colores("cian"),
+#              fill = "white",
+#              stat = "identity",
+#              size = 2,
+#              shape = 21)+
+#   scale_y_continuous(limits = c(0,15000),
+#                      breaks = seq(0, 15000, 1000),
+#                      labels = function(x) format(x, big.mark = ".")) +
+#   scale_x_date(date_breaks = "2 month", 
+#                date_labels = "%b-%y")+
+#   labs(#title = "Vuelos internacionales",
+#        y = "Cantidad",
+#        x = "",
+#        color = "",
+#        caption = "Fuente: MINTURDEP en base a información de ANAC\n Nota: En rojo, los meses de abril.") +
+#   theme_minimal() +
+#   theme(legend.position = "bottom",
+#         axis.text.x = element_text(angle = 45,
+#                                    hjust = 1, 
+#                                    vjust = 1)) +
+#   guides(color = guide_legend(nrow = 1))
+```
+
+```{r}
+int_asientos <- internacional %>% 
+  group_by(anio_local) %>% 
+  summarise(asientos = round(sum(asientos_pax, na.rm = T), 0)) %>%
+  mutate(anio_local = paste0("anio_", anio_local)) %>% 
+  pivot_wider(names_from = "anio_local", values_from = asientos) %>% 
+  mutate(var = round((anio_2021/anio_2020 - 1)*100, 2),
+         var_19 = round((anio_2021/anio_2019 - 1)*100, 2))
+
+int_asientos_2019 <- int_asientos[,1] %>% pull
+int_asientos_2020 <- int_asientos[,2] %>% pull
+int_asientos_2021 <- int_asientos[,3] %>% pull %>% format(., big.mark = ".")
+
+int_var_19_factor_asientos <- if_else(int_asientos$var_19 > 0,
+                  "aumento del",
+                  "disminución del")
+
+int_var_20_factor_asientos <- if_else(int_asientos$var > 0,
+                  "crecimiento del",
+                  "reducción del")
+
+int_var_19_asientos <- int_asientos[,5] %>% pull %>% abs(.) %>% format(., decimal.mark = ",")
+
+int_var_20_asientos <- int_asientos[,4] %>% pull %>% abs(.) %>% format(., decimal.mark = ",")
+```
+
+Contando el total de vuelos internacionales hacia y a Argentina en `r as.character(anio)`, hubo `r int_asientos_2021` plazas disponibles. Este valor supone una `r int_var_20_factor_asientos` `r int_var_20_asientos`% frente al año anterior y una `r int_var_19_factor_asientos` `r int_var_19_asientos`% con respecto al 2019.
+
+```{r}
+int_pasajeros <- internacional %>% 
+  group_by(anio_local) %>% 
+  summarise(pasajeros = round(sum(pax_ad, na.rm = T), 0)) %>%
+  mutate(anio_local = paste0("anio_", anio_local)) %>% 
+  pivot_wider(names_from = "anio_local", values_from = pasajeros) %>% 
+  mutate(var = round((anio_2021/anio_2020 - 1)*100, 2),
+         var_19 = round((anio_2021/anio_2019 - 1)*100, 2)) 
+
+int_pasajeros_2019 <- int_pasajeros[,1] %>% pull
+int_pasajeros_2020 <- int_pasajeros[,2] %>% pull
+int_pasajeros_2021 <- int_pasajeros[,3] %>% pull %>% format(., big.mark = ".")
+
+int_var_19_factor_pasajeros <- if_else(int_pasajeros$var_19 > 0,
+                  "incremento del",
+                  "decrecimiento del")
+
+int_var_20_factor_pasajeros <- if_else(int_pasajeros$var > 0,
+                  "incremento del",
+                  "merma del")
+
+int_var_19_pasajeros <- int_pasajeros[,5] %>% pull %>% abs(.) %>% format(., decimal.mark = ",")
+
+int_var_20_pasajeros <- int_pasajeros[,4] %>% pull %>% abs(.) %>% format(., decimal.mark = ",")
+```
+
+En total, `r int_pasajeros_2021` pasajeros viajaron en vuelos internacionales desde y hacia Argentina en todo el año. Al comparar ese valor contra un año atrás, esa cifra supone un `r var_20_factor_pasajeros` `r var_20_pasajeros`%. Sin embargo, cuando se toma ese valor frente dos períodos previos, el mismo supone un `r var_19_factor_pasajeros` `r var_19_pasajeros`%.
+
+```{r}
+base_total %>%
+  filter(clasificacion_vuelo == "Internacional") %>%
+  filter(anio_local <= anio) %>% 
+  group_by(anio_local, mes_local) %>% 
+  summarise(vuelos = sum(vuelos, na.rm = T),
+            pasajeros = sum(pax_ad, na.rm = T),
+            asientos = sum(asientos_pax, na.rm = T)) %>% 
+  mutate(fecha = lubridate::my(paste0(mes_local,"-", anio_local))) %>% 
+  pivot_longer(cols = c("asientos", "vuelos", "pasajeros"),
+               names_to = "estadisticas",
+               values_to = "totales") %>% 
+  ggplot() +
+  # geom_col(aes(x = fecha,
+  #               y = asientos,
+  #               fill = "Asientos"),
+  #           stat = "identity",
+  #           width = 20)+
+  # geom_col(aes(x = fecha,
+  #               y = pasajeros,
+  #               fill = "Pasajeros"),
+  #           stat = "identity",
+  #           width = 15)+
+  geom_line(aes(x = fecha,
+                y = totales,
+                color = estadisticas),
+            stat = "identity",
+            size = 1, 
+            show.legend = F)+
+  geom_point(aes(x = fecha,
+                y = totales,
+                color = estadisticas),
+            stat = "identity",
+            size = 1.25,
+            show.legend = F)+
+  scale_y_continuous(#limits = c(0,2000000),
+                     #breaks = seq(0, 2000000, 250000),
+                     labels = function(x) format(x, big.mark = ".")) +
+  scale_x_date(date_breaks = "3 month", 
+               date_labels = "%b-%y")+
+  scale_color_dnmye(palette = "cualitativa")+
+  labs(title = "Mercado Internacional",
+       subtitle = "Vuelos, asientos y pasajeros",
+       y = "",
+       x = "",
+       fill = "",
+       color = "",
+       caption = "Fuente: DNMyE en base a información de ANAC.") +
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45,
+                                   hjust = 1, 
+                                   vjust = 1),
+        strip.text = element_text(face = "bold")) +
+  facet_grid(estadisticas ~ .,
+             scales = "free")
+```
+
+
+```{r tabla-7}
+
+freq_int_org_21 <- internacional %>% 
+filter(origen_pais_etiqueta != "Argentina") %>% 
+filter(anio_local == 2021) %>% 
+  mutate(mes_local = str_to_title(lubridate::month(mes_local, label = T, abbr = F))) %>% 
+  group_by(origen_continente_etiqueta_indec, mes_local, .drop = F) %>% 
+  summarise(frecuencias_21 = sum(vuelos, na.rm = T)) %>% 
+  mutate(origen_continente_etiqueta_indec = paste0(origen_continente_etiqueta_indec, "_21")) %>% 
+  pivot_wider(names_from = origen_continente_etiqueta_indec, values_from = frecuencias_21)
+
+freq_int_org_20 <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local == 2020) %>% 
+  mutate(mes_local = str_to_title(lubridate::month(mes_local, label = T, abbr = F))) %>% 
+  group_by(origen_continente_etiqueta_indec, mes_local, .drop = F) %>% 
+  summarise(frecuencias_20 = sum(vuelos, na.rm = T)) %>%
+  mutate(origen_continente_etiqueta_indec = paste0(origen_continente_etiqueta_indec, "_20")) %>% 
+  pivot_wider(names_from = origen_continente_etiqueta_indec, values_from = frecuencias_20)
+
+freq_int_org_19 <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local == 2019) %>% 
+  mutate(mes_local = str_to_title(lubridate::month(mes_local, label = T, abbr = F))) %>% 
+  group_by(origen_continente_etiqueta_indec, mes_local, .drop = F) %>% 
+  summarise(frecuencias_19 = sum(vuelos, na.rm = T)) %>%
+  mutate(origen_continente_etiqueta_indec = paste0("count_",origen_continente_etiqueta_indec, "_19")) %>% 
+  pivot_wider(names_from = origen_continente_etiqueta_indec, values_from = frecuencias_19) %>% 
+  mutate(count_asia_19 = 0)
+
+freq_int_org <- freq_int_org_21 %>% 
+  left_join(freq_int_org_20, by = c("mes_local")) %>%
+  left_join(freq_int_org_19, by = c("mes_local")) %>%
+  janitor::clean_names() %>%
+  mutate(across(.cols = -c(1), ~ replace_na(as.numeric(replace_na(., 0)))),
+         var_inter_africa = round((africa_21/africa_20)-1, 1),
+         var_inter_africa_19 = round((africa_21/count_africa_19)-1, 1),
+         var_inter_asia = round((asia_21/asia_20)-1, 1),
+         var_inter_asia_19 = round((asia_21/count_asia_19)-1, 1),
+         var_inter_america = round((america_21/america_20)-1, 1),
+         var_inter_america_19 = round((america_21/count_america_19)-1, 1),
+         var_inter_europa = round((europa_21/europa_20)-1, 1),
+         var_inter_europa_19 = round((europa_21/count_europa_19)-1, 1),
+         var_inter_oceania = round((oceania_21/oceania_20)-1, 1),
+         var_inter_oceania_19 = round((oceania_21/count_oceania_19)-1, 1),
+         var_inter_africa = if_else(!is.finite(var_inter_africa),
+                                  africa_21,
+                                  var_inter_africa),
+         var_inter_africa_19 = if_else(!is.finite(var_inter_africa_19),
+                                  africa_21,
+                                  var_inter_africa_19),
+         var_inter_oceania = if_else(!is.finite(var_inter_oceania),
+                                  oceania_21,
+                                  var_inter_oceania),
+         var_inter_asia = if_else(!is.finite(var_inter_asia),
+                                  asia_21,
+                                  var_inter_asia),
+         var_inter_oceania_19 = if_else(!is.finite(var_inter_oceania_19),
+                                  oceania_21,
+                                  var_inter_oceania_19),
+         var_inter_asia_19 = if_else(!is.finite(var_inter_asia_19),
+                                  asia_21,
+                                  var_inter_asia_19)) %>%
+  select(-contains("_20"),
+         -contains("count"),
+         -contains("NA"))
+
+col_order <- c(1, 2, 7, 8, 3, 11, 12, 4, 9, 10, 5, 13, 14, 6, 15, 16)
+
+freq_int_org <- freq_int_org[, col_order]
+
+
+tabla_7_aerocomercial <- freq_int_org %>%
+  ungroup() %>% 
+  mutate(mes_local = factor(mes_local,
+                            levels = c("Enero",
+                                       "Febrero",
+                                       "Marzo",
+                                       "Abril",
+                                       "Mayo",
+                                       "Junio",
+                                       "Julio",
+                                       "Agosto",
+                                       "Septiembre",
+                                       "Octubre",
+                                       "Noviembre",
+                                       "Diciembre"))) %>%
+  arrange(mes_local) %>%
+  gt() %>% 
+  # tab_header(
+  #   title = md("__FRECUENCIAS AÉREAS DE VUELOS INTERNACIONALES A ARGENTINA POR CONTINENTE DE ORIGEN, POR MES__"),
+  #   subtitle = "2021") %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>%
+  cols_label(
+    mes_local = md("**Mes**"),
+    africa_21 = md("**Vuelos**"),
+    var_inter_africa = md("**var % i.a**"),
+    var_inter_africa_19 = md("**var % vs 2019**"),
+    america_21 = md("**Vuelos**"),
+    var_inter_america = md("**var % i.a**"),
+    var_inter_america_19 = md("**var % vs 2019**"),
+    asia_21 = md("**Vuelos**"),
+    var_inter_asia = md("**var % i.a**"),
+    var_inter_asia_19 = md("**var % vs 2019**"),
+    europa_21 = md("**Vuelos**"),
+    var_inter_europa = md("**var % i.a**"),
+    var_inter_europa_19 = md("**var % vs 2019**"),
+    oceania_21 = md("**Vuelos**"),
+    var_inter_oceania = md("**var % i.a**"), 
+    var_inter_oceania_19 = md("**var % vs 2019**")) %>% 
+  cols_align(
+    align = "center",
+    columns = -c(1))  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  fmt_percent(columns = c(3, 4, 6, 7, 9, 10, 12, 13, 15, 16), decimals = 0, dec_mark = ",", sep_mark = ".") %>% 
+  tab_spanner(
+    label = "África",
+    columns = contains("africa")
+    ) %>% 
+    tab_spanner(
+    label = "América",
+    columns = contains("america")
+    ) %>% 
+    tab_spanner(
+    label = "Asia",
+    columns = contains("asia")
+    ) %>% 
+    tab_spanner(
+    label = "Europa",
+    columns = contains("europa")
+    ) %>% 
+    tab_spanner(
+    label = "Oceanía",
+    columns = contains("oceania")
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")),
+    locations = cells_column_spanners(spanners = everything()))%>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_africa,
+      rows = var_inter_africa < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_africa,
+      rows = var_inter_africa > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_africa_19,
+      rows = var_inter_africa_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_africa_19,
+      rows = var_inter_africa_19 > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_america,
+      rows = var_inter_america < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_america,
+      rows = var_inter_america > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_america_19,
+      rows = var_inter_america_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_america_19,
+      rows = var_inter_america_19 > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_europa_19,
+      rows = var_inter_europa_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_europa_19,
+      rows = var_inter_europa_19 > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_europa,
+      rows = var_inter_europa < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_europa,
+      rows = var_inter_europa > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_oceania_19,
+      rows = var_inter_oceania_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_oceania_19,
+      rows = var_inter_oceania_19 > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_oceania,
+      rows = var_inter_oceania < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_oceania,
+      rows = var_inter_oceania > 0)
+    )%>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_asia,
+      rows = var_inter_asia < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_asia,
+      rows = var_inter_asia > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_asia_19,
+      rows = var_inter_asia_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_inter_asia_19,
+      rows = var_inter_asia_19 > 0)
+    ) %>%
+  tab_caption(glue("Vuelos internacionales a Argentina por mes y continente de origen. Año {anio}."))
+
+tabla_7_aerocomercial %>% 
+  tab_options(container.height = 600,
+  container.overflow.y = TRUE)
+
+```
+
+<br>
+
+```{r}
+internacional_x_continente <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local != 2022) %>% 
+  group_by(anio_local, origen_continente_etiqueta_indec, .drop = F) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>%
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(pct = round(frecuencias/frecuencias_totales*100, 1)) %>% 
+  filter(!is.na(origen_continente_etiqueta_indec)) %>% 
+  complete(anio_local,
+           origen_continente_etiqueta_indec,
+           fill = list(frecuencias = 0,
+                       frecuencias_totales = 0,
+                       pct = 0))
+
+internacional_x_continente_2021 <- internacional_x_continente %>% 
+  select(anio_local, origen_continente_etiqueta_indec, pct) %>% 
+  pivot_wider(names_from = origen_continente_etiqueta_indec,
+              values_from = pct) %>% 
+  filter(anio_local == 2021)
+
+internacional_x_continente_2021_america <- internacional_x_continente_2021[,3] %>%  pull %>% format(., decimal.mark = ",")
+
+internacional_x_continente_2021_europa <- internacional_x_continente_2021[,5] %>%  pull %>% format(., decimal.mark = ",")
+```
+
+Con respecto al origen de los vuelos internacionales según continente, es **América** la región con mayores frecuencias aéreas hacia Argentina (`r internacional_x_continente_2021_america`%), seguido por **Europa** (`r internacional_x_continente_2021_europa`%). Por otro lado, los continentes que registraron menor cantidad de vuelos internacionales hacia Argentina fueron **África, Asia y Oceanía** (menos del 1%).
+
+<br>
+
+```{r grafico-7, fig.cap = glue("Vuelos internacionales hacia Argentina por continente de origen. Años {anio-2} a {anio}.")}
+
+internacional_x_continente %>%
+  ggplot(aes(x = reorder(origen_continente_etiqueta_indec, -frecuencias), y = pct)) +
+  geom_bar(aes(fill = origen_continente_etiqueta_indec), stat = "identity", show.legend = F) +
+  geom_label(aes(label = paste0(format(pct, decimal.mark = ","), "%"), y = pct + 5),
+            size = 2.5) +
+  facet_grid(~ anio_local) +
+  scale_y_continuous(limits = c(0, 100),
+                     labels = function(x) paste0(x, "%")) +
+  scale_fill_dnmye(palette = "cualitativa")+
+  labs(#title = "Frecuencias aéreas de vuelos internacionales por continente de destino.",
+       #subtitle = "Años 2019/2021",
+       y = "Distribución porcentual",
+       x = "",
+       fill = "",
+       caption = "Fuente: DNMyE en base a información de ANAC.") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1))
+```
+
+<br>
+
+```{r}
+tabla_inter <- internacional %>% 
+  filter(destino_pais_etiqueta == "Argentina") %>%
+  group_by(anio_local, origen_pais_etiqueta) %>%
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>%
+  mutate(cuota = frecuencias/sum(frecuencias, na.rm = T)*100) %>%
+  ungroup() %>% 
+  select(anio_local, origen_pais_etiqueta, cuota) %>% 
+  pivot_wider(names_from = anio_local, values_from =  cuota, names_prefix = "cuota_") %>% 
+  arrange(-cuota_2021) %>% 
+  mutate(across(.cols = c(2:4), ~ round(., 2)))
+
+primer_pais_orig <- tabla_inter[1,1] %>% pull()
+segundo_pais_orig <- tabla_inter[2,1] %>% pull()
+tercer_pais_orig <- tabla_inter[3,1] %>% pull()
+
+primer_pais_orig_pct <- lbl_percent(tabla_inter[1,4][[1]]/100)
+
+segundo_pais_orig_pct <- lbl_percent(tabla_inter[2,4][[1]]/100)
+tercer_pais_orig_pct <- lbl_percent(tabla_inter[3,4][[1]]/100)
+
+primer_pais_orig_anio_prev <- (tabla_inter %>% arrange(-cuota_2020))[1,1] %>% pull()
+segundo_pais_orig_anio_prev <- (tabla_inter %>% arrange(-cuota_2020))[2,1] %>% pull()
+tercer_pais_orig_anio_prev <- (tabla_inter %>% arrange(-cuota_2020))[3,1] %>% pull()
+```
+
+Con respecto al origen de los vuelos internacionales por país de procedencia, se observa que se recibieron principalmente vuelos procedentes de **`r primer_pais_orig`, `r segundo_pais_orig` y `r tercer_pais_orig`**, en dicho orden.
+El primero concentró el `r primer_pais_orig_pct`% del total de vuelos internacionales hacia la Argentina, el segundo, el `r segundo_pais_orig_pct`% y, el tercero, el `r tercer_pais_orig_pct`%.
+
+Se observa que el orden de los países es similar al del año anterior.
+En dicha oportunidad, el ranking de países por relevancia se ordenaba **`r primer_pais_orig_anio_prev`, `r segundo_pais_orig_anio_prev` y `r tercer_pais_orig_anio_prev`**.
+
+```{r tabla-8}
+freq_cont_pais_21 <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local == 2021) %>%
+  group_by(origen_continente_etiqueta_migraciones, origen_pais_etiqueta, empresa_agrup_def) %>% 
+  summarise(frecuencias_21 = n())
+
+freq_cont_pais_20 <- internacional %>%
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local == 2020) %>%
+  group_by(origen_continente_etiqueta_migraciones, origen_pais_etiqueta, empresa_agrup_def) %>% 
+  summarise(frecuencias_20 = n())
+
+freq_cont_pais_19 <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local == 2019) %>%
+  group_by(origen_continente_etiqueta_migraciones, origen_pais_etiqueta, empresa_agrup_def) %>% 
+  summarise(frecuencias_19 = n())
+
+freq_cont_pais <- freq_cont_pais_21 %>% 
+  left_join(freq_cont_pais_20, by = c("origen_continente_etiqueta_migraciones", "origen_pais_etiqueta", "empresa_agrup_def")) %>% 
+  left_join(freq_cont_pais_19, by = c("origen_continente_etiqueta_migraciones", "origen_pais_etiqueta", "empresa_agrup_def")) %>%
+  drop_na(origen_continente_etiqueta_migraciones, empresa_agrup_def) %>%
+  mutate(across(.cols = -c(1:3), ~ as.numeric(.)),
+         var_anual = round((frecuencias_21/frecuencias_20)-1, 3),
+         var_anual_19 = round((frecuencias_21/frecuencias_19)-1, 3),
+         # var_anual = if_else(!is.finite(var_anual),
+         #                     frecuencias_21,
+         #                     var_anual),
+         # var_anual_19 = if_else(!is.finite(var_anual_19),
+         #                     frecuencias_21,
+         #                     var_anual_19),
+         # frecuencias_20 = case_when(is.na(frecuencias_20) ~ "-",
+         #                            T ~ as.character(frecuencias_20)),
+         # frecuencias_19 = case_when(is.na(frecuencias_19) ~ "-",
+         #                            T ~ as.character(frecuencias_19))
+         ) %>% 
+  group_by(origen_continente_etiqueta_migraciones, origen_pais_etiqueta, empresa_agrup_def) %>% 
+  mutate(vuelos_total = sum(across(starts_with("frecuencias")), na.rm = T)) %>%
+  filter(vuelos_total > 5) %>% 
+  select(-vuelos_total)
+
+tabla_8_aerocomercial <-  freq_cont_pais %>% 
+  ungroup() %>% 
+  group_by(origen_continente_etiqueta_migraciones) %>% 
+  gt() %>% 
+  # tab_header(
+  #   title = md("__FRECUENCIAS AÉREAS DE VUELOS INTERNACIONALES POR CONTINENTE Y PAÍS DE ORIGEN__")) %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  cols_label(
+    origen_pais_etiqueta = md("**País**"),
+    empresa_agrup_def = md("**Compañía Aérea**"),
+    frecuencias_21 = md("**2021**"),
+    frecuencias_20 = md("**2020**"),
+    frecuencias_19 = md("**2019**"),
+    var_anual = md("**var % i.a**"),
+    var_anual_19 = md("**var % vs 2019**"),
+    ) %>% 
+  cols_align(
+    align = "center",
+    columns = c(4:8))  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  fmt_percent(columns = c(7, 8), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_spanner(
+    label = "Frecuencias",
+    columns = contains("frecuencias")
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")),
+    locations = cells_column_spanners(spanners = everything())) %>% 
+  tab_style(
+    style =
+      cell_fill(color = dnmye_colores("gris claro")),
+      locations = cells_row_groups()
+    ) %>%
+  sub_missing(
+    columns = contains("frecuencias"),
+    rows = everything(),
+    missing_text = 0) %>% 
+  sub_missing(
+    columns = contains("var_anual"),
+    rows = everything(),
+    missing_text = "0%") %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_anual_19,
+      rows = var_anual_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_anual_19,
+      rows = var_anual_19 > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = var_anual,
+      rows = var_anual < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = var_anual,
+      rows = var_anual > 0)
+    ) %>%
+  tab_caption(glue("Vuelos internacionales por continente, país de origen y compañía aérea. Años {anio-2} a {anio}."))
+
+
+tabla_8_aerocomercial %>% 
+  tab_options(container.height = 600,
+  container.overflow.y = TRUE) 
+
+```
+
+<br>
+
+```{r}
+internacional_x_ciudad <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local == 2021) %>%
+  group_by(origen_localidad_etiqueta) %>%
+  summarise(frecuencias = n()) %>% 
+  mutate(prop = frecuencias/sum(frecuencias, na.rm = T)) %>% 
+  arrange(-frecuencias) %>% 
+  mutate(origen_localidad_etiqueta = case_when(prop <= 0.05 ~ "Resto",
+                                               T ~ origen_localidad_etiqueta)) %>% 
+  group_by(origen_localidad_etiqueta) %>% 
+  summarise(frecuencias = sum(frecuencias)) %>%
+  mutate(prop = round(frecuencias/sum(frecuencias, na.rm = T)*100, 1)) %>%
+  arrange(-frecuencias) 
+
+ciudad_int_orig_primer <- (internacional_x_ciudad %>% filter(origen_localidad_etiqueta != "Resto"))[1,1] %>% pull()
+ciudad_int_orig_segund <- (internacional_x_ciudad %>% filter(origen_localidad_etiqueta != "Resto"))[2,1] %>% pull()
+ciudad_int_orig_tercer <- (internacional_x_ciudad %>% filter(origen_localidad_etiqueta != "Resto"))[3,1] %>% pull()
+
+ciudad_int_orig_primer_frq <- (internacional_x_ciudad %>% filter(origen_localidad_etiqueta != "Resto"))[1,2] %>% pull()
+ciudad_int_orig_segund_frq <- (internacional_x_ciudad %>% filter(origen_localidad_etiqueta != "Resto"))[2,2] %>% pull()
+ciudad_int_orig_tercer_frq <- (internacional_x_ciudad %>% filter(origen_localidad_etiqueta != "Resto"))[3,2] %>% pull()
+
+```
+
+La ciudad que presentó mayor cantidad de frecuencias hacia la Argentina en el año `r as.character(anio)` fue **`r ciudad_int_orig_primer`**, con `r ciudad_int_orig_primer_frq` frecuencias.
+En segundo lugar, se encuentra **`r ciudad_int_orig_segund`** con `r ciudad_int_orig_segund_frq` frecuencias anuales, seguida, en tercer lugar, por la ciudad de **`r ciudad_int_orig_tercer`** con `r ciudad_int_orig_tercer_frq` frecuencias anuales.
+
+<br>
+
+```{r grafico-8, fig.cap= glue("Vuelos internacionales por ciudad de origen. Año {anio}.")}
+internacional_x_ciudad %>%   
+  ggplot(aes(x = factor(origen_localidad_etiqueta, levels = c("Santiago",
+                                                              "Miami",
+                                                              "São Paulo",
+                                                              "Madrid",
+                                                              "Asunción",
+                                                              "Panamá",
+                                                              "Lima",
+                                                              "Bogotá",
+                                                              "Resto")), y = prop)) +
+  geom_bar(aes(fill = origen_localidad_etiqueta), stat = "identity", show.legend = F) +
+  geom_label(aes(label = paste0(format(prop, decimal.mark = ","), "%"), y = prop+3),
+             size = 2.5) +
+  scale_y_continuous(limits = c(0, 50),
+                     labels = function(x) paste0(x, "%")) +
+  scale_x_discrete(labels = function(origen_localidad_etiqueta) str_wrap(origen_localidad_etiqueta, width = 10))+
+  scale_fill_dnmye(palette = "cualitativa")+
+  labs(#title = "Frecuencias aéreas de vuelos internacionales por ciudad de origen",
+       #subtitle = "Año 2021",
+       y = "Distribución porcentual",
+       x = "",
+       fill = "",
+       caption = "Fuente: DNMyE en base a información de ANAC.") +
+  theme_minimal()
+                     
+```
+
+<br>
+
+```{r}
+vuelos_int_21 <- internacional %>% 
+    filter(origen_pais_etiqueta != "Argentina") %>% 
+filter( anio_local == 2021) %>%
+  group_by(origen_localidad_etiqueta) %>% 
+  summarise(frecuencias_21 = n()) %>% 
+  arrange(-frecuencias_21) %>% 
+  mutate(posicion_21 = 1:n(),
+         participacion_21 = round(frecuencias_21/sum(frecuencias_21), 2))
+
+vuelos_int_20 <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+filter(anio_local == 2020) %>%
+  group_by(origen_localidad_etiqueta) %>% 
+  summarise(frecuencias_20 = n()) %>% 
+  arrange(-frecuencias_20) %>% 
+  mutate(posicion_20 = 1:n()) 
+
+vuelos_int_19 <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+filter(anio_local == 2019) %>%
+  group_by(origen_localidad_etiqueta) %>% 
+  summarise(frecuencias_19 = n()) %>% 
+  arrange(-frecuencias_19) %>% 
+  mutate(posicion_19 = 1:n()) 
+
+vuelos_int <- vuelos_int_21 %>% 
+  full_join(vuelos_int_20, by = "origen_localidad_etiqueta") %>% 
+  full_join(vuelos_int_19, by = "origen_localidad_etiqueta") %>% 
+  filter(!is.na(posicion_21) & !is.na(posicion_20) & !is.na(posicion_19)) %>% 
+  mutate(variacion = round((frecuencias_21-frecuencias_20)/frecuencias_20, 2),
+         variacion_19 = round((frecuencias_21-frecuencias_19)/frecuencias_19, 2),
+         origen_localidad_etiqueta = case_when(posicion_21 >= 20 ~ "Resto",
+                                                T ~ origen_localidad_etiqueta)) %>%
+  group_by(origen_localidad_etiqueta) %>% 
+  summarise(frecuencias_21 = sum(frecuencias_21),
+            frecuencias_20 = sum(frecuencias_20),
+            frecuencias_19 = sum(frecuencias_19),
+            posicion_21 = first(posicion_21),
+            posicion_20 = first(posicion_20),
+            posicion_19 = first(posicion_19)) %>% 
+  mutate(variacion = round((frecuencias_21-frecuencias_20)/frecuencias_20, 2),
+         variacion_19 = round((frecuencias_21-frecuencias_19)/frecuencias_19, 2),
+         participacion_21 = round(frecuencias_21/sum(frecuencias_21), 3),
+         posicion_21 = case_when(origen_localidad_etiqueta == "Resto" ~ "-",
+                                 T ~ as.character(posicion_21)),
+         posicion_20 = case_when(origen_localidad_etiqueta == "Resto" ~ "-",
+                                 T ~ as.character(posicion_20)),
+         posicion_19 = case_when(origen_localidad_etiqueta == "Resto" ~ "-",
+                                 T ~ as.character(posicion_19)),
+         ) %>%
+  arrange(-frecuencias_21)
+
+col_order <- c("origen_localidad_etiqueta",
+               "posicion_21",
+               "posicion_20",
+               "posicion_19",
+               "frecuencias_21",
+               "frecuencias_20",
+               "frecuencias_19",
+               "variacion",
+               "variacion_19",
+               "participacion_21")
+
+vuelos_int <- vuelos_int[, col_order]
+
+resto <- vuelos_int %>% 
+  filter(origen_localidad_etiqueta == "Resto")
+
+vuelos_int <- vuelos_int %>% 
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  rbind(resto)
+
+ciudad_int_rank_prim <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(-variacion))[1,1] %>% pull
+ciudad_int_rank_seg <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(-variacion))[2,1] %>% pull
+ciudad_int_rank_ter <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(-variacion))[3,1] %>% pull
+
+ciudad_int_rank_prim_pct <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(-variacion))[1,2] %>% pull
+ciudad_int_rank_seg_pct <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(-variacion))[2,2] %>% pull
+ciudad_int_rank_ter_pct <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(-variacion))[3,2] %>% pull
+
+ciudad_int_rank_ult <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(variacion))[1,1] %>% pull
+ciudad_int_rank_anteult <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(variacion))[2,1] %>% pull
+ciudad_int_rank_antepenult <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(variacion))[3,1] %>% pull
+
+ciudad_int_rank_ult_pct <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(variacion))[1,2] %>% pull
+ciudad_int_rank_anteult_pct <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(variacion))[2,2] %>% pull
+ciudad_int_rank_antepenult_pct <- (vuelos_int %>%
+  select(origen_localidad_etiqueta, variacion) %>%
+  filter(origen_localidad_etiqueta != "Resto") %>% 
+  mutate(variacion = variacion*100) %>% 
+  arrange(variacion))[3,2] %>% pull
+```
+
+Por otro lado, las ciudades que en el año `r as.character(anio)` registraron mayores crecimientos interanuales fueron **`r ciudad_int_rank_prim`** (`r ciudad_int_rank_prim_pct`%) y, en menor medida, **`r ciudad_int_rank_seg`** (`r ciudad_int_rank_seg_pct`%) y **`r ciudad_int_rank_ter`** (`r ciudad_int_rank_ter_pct`%).
+Por lo contrario, **`r ciudad_int_rank_ult`, `r ciudad_int_rank_anteult` y `r ciudad_int_rank_antepenult`** fueron las ciudades que registraron las mayores caídas respecto al año anterior (`r ciudad_int_rank_ult_pct`%, `r ciudad_int_rank_anteult_pct`% y `r ciudad_int_rank_antepenult_pct`% respectivamente).
+
+```{r tabla-9}
+tabla_9_aerocomercial <- vuelos_int %>%
+  gt() %>% 
+  # tab_header(
+  #   title = md("__RANKING DE FRECUENCIAS AÉREAS DE VUELOS DE CABOTAJE POR CIUDAD DE DESTINO__")) %>% _frq
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  cols_label(
+    origen_localidad_etiqueta = md("**Ciudad**"),
+    posicion_21 = md("**2021**"),
+    posicion_20 = md("**2020**"),
+    posicion_19 = md("**2019**"),
+    frecuencias_21 = md("**2021**"),
+    frecuencias_20 = md("**2020**"),
+    frecuencias_19 = md("**2019**"),
+    variacion = md("**var % i.a**"),
+    variacion_19 = md("**var % vs 2019**"),
+    participacion_21 = md("**Participación 2021 (%)**")) %>% 
+  cols_align(
+    align = "center",
+    columns = everything())  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  fmt_percent(columns = c(8 : 10), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_spanner(
+    label = "Posición",
+    columns = contains("posicion"))%>% 
+  tab_spanner(
+    label = "Frecuencias",
+    columns = contains("frecuencias")
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")),
+    locations = cells_column_spanners(spanners = everything())
+    ) %>% 
+   tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = variacion,
+      rows = variacion < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = variacion,
+      rows = variacion > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = variacion_19,
+      rows = variacion_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = variacion_19,
+      rows = variacion_19 > 0)
+    ) %>%
+  tab_caption(glue("Vuelos internacionales hacia Argentina por ciudad de origen. Años {anio-2} a {anio}."))
+
+tabla_9_aerocomercial %>% 
+ tab_options(container.height = 600,
+  container.overflow.y = TRUE)
+
+```
+
+<br>
+
+```{r}
+ranking_int_partcipacion <- vuelos_int %>% 
+  select(origen_localidad_etiqueta, posicion_21, posicion_20) %>% 
+  mutate(puestos = as.numeric(posicion_20) - as.numeric(posicion_21)) %>% 
+  arrange(-puestos)
+
+rank_particip_primer <- ranking_int_partcipacion[1,1] %>% pull
+rank_particip_segundo <- ranking_int_partcipacion[2,1] %>% pull
+
+# rank_particip_primer_posiciones <- ranking_int_partcipacion[1,4] %>% pull
+# rank_particip_segundo_posiciones <- ranking_int_partcipacion[2,4] %>% pull
+
+rank_particip_primer_posicion_21 <- ranking_int_partcipacion[1,2] %>% pull
+rank_particip_segundo_posiciones_21 <- ranking_int_partcipacion[2,2] %>% pull
+
+rank_particip_primer_posicion_20 <- ranking_int_partcipacion[1,3] %>% pull
+rank_particip_segundo_posiciones_20 <- ranking_int_partcipacion[2,3] %>% pull
+
+```
+
+Con respecto a las posiciones en el ranking `r as.character(anio)`, la ciudad que más escaló fue **`r rank_particip_primer`**, ubicándose en el puesto número N° `r rank_particip_primer_posicion_21` luego de haber estado el año anterior en la posición N° `r rank_particip_primer_posicion_20`.
+A la misma, le sigue **`r rank_particip_segundo`**, la cual pasó del puesto `r rank_particip_segundo_posiciones_20` al `r rank_particip_segundo_posiciones_21`.
+
+```{r tabla-10}
+tabla_10_aerocomercial <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local == 2021) %>%
+  mutate(mes_local = lubridate::month(mes_local, label = T, abbr = F),
+         origen_localidad_etiqueta = case_when(origen_localidad_etiqueta == "London" ~ "Londres",
+                                               origen_localidad_etiqueta == "Moscow" ~ "Moscú",
+                                               T ~ origen_localidad_etiqueta)) %>% 
+  group_by(origen_pais_etiqueta, origen_localidad_etiqueta, mes_local, .drop = F) %>% 
+  summarise(frecuencias = n()) %>%
+  filter(sum(frecuencias) >= 6) %>% 
+  mutate(mes_local = str_to_sentence(mes_local)) %>% 
+  pivot_wider(names_from = mes_local, values_from = frecuencias) %>%
+  drop_na(origen_pais_etiqueta) %>% 
+  ungroup() %>% 
+  group_by(origen_pais_etiqueta) %>% 
+  gt() %>% 
+  # tab_header(
+  #   title = md("__FRECUENCIAS AÉREAS DE VUELOS INTERNACIONALES POR MES, SEGÚN PAÍS Y CIUDAD DE ORIGEN__"),
+  #   subtitle = md("__2021__")) %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>%
+  cols_label(
+    origen_pais_etiqueta = md("**País**"),
+    origen_localidad_etiqueta = md("**Ciudad**")) %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  tab_style(style = cell_fill(color = dnmye_colores("gris claro")),
+            locations = cells_row_groups()) %>%
+  tab_caption(glue("Vuelos internacionales por mes, según país y ciudad de origen. Año {anio}."))
+
+tabla_10_aerocomercial %>% 
+  tab_options(container.height = 600,
+  container.overflow.y = TRUE)
+
+```
+
+<br>
+
+```{r}
+int_ranking_aero <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local == 2021) %>% 
+  mutate(empresa_agrup_def = case_when(is.na(empresa_agrup_def) ~ "Otras Aerolíneas",
+                                     T ~ as.character(empresa_agrup_def))) %>%
+  group_by(empresa_agrup_def, .drop = F) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  mutate(pct = round(frecuencias/sum(frecuencias)*100, 1)) %>% 
+  arrange(-pct) %>% 
+  mutate(empresa_agrup_def = case_when(pct < 3 ~ "Otras Aerolíneas",
+                                     T ~ empresa_agrup_def)) %>% 
+  group_by(empresa_agrup_def) %>% 
+  summarise(frecuencias = sum(frecuencias)) %>% 
+  mutate(pct = round(frecuencias/sum(frecuencias)*100, 1)) %>% 
+  arrange(-pct)
+
+rank_aero_int_primer <- (int_ranking_aero %>% filter(empresa_agrup_def != "Otras Aerolíneas"))[1,1] %>% pull()
+rank_aero_int_primer_frq <- (int_ranking_aero %>% filter(empresa_agrup_def != "Otras Aerolíneas"))[1,2] %>% pull() %>% format(., big.mark = ".") 
+rank_aero_int_primer_pct <- (int_ranking_aero %>% filter(empresa_agrup_def != "Otras Aerolíneas"))[1,3] %>% pull() %>% format(., decimal.mark = ",") 
+
+rank_aero_int_segundo <- (int_ranking_aero %>% filter(empresa_agrup_def != "Otras Aerolíneas"))[2,1] %>% pull()
+rank_aero_int_segundo_frq <- (int_ranking_aero %>% filter(empresa_agrup_def != "Otras Aerolíneas"))[2,2] %>% pull() %>% format(., big.mark = ".") 
+rank_aero_int_segundo_pct <- (int_ranking_aero %>% filter(empresa_agrup_def != "Otras Aerolíneas"))[2,3] %>% pull() %>% format(., decimal.mark = ",") 
+```
+
+Según el ranking de las compañías aéreas, nuevamente, fue **`r rank_aero_int_primer`** la que registró mayor cantidad de vuelos internacionales (`r rank_aero_int_primer_frq` frecuencias anuales), acaparando un `r rank_aero_int_primer_pct`% de los vuelos hacia Argentina.
+La segunda compañía en participación de mercado, con un `r rank_aero_int_segundo_pct`%, fue **`r rank_aero_int_segundo`**, la cual realizó `r rank_aero_int_segundo_frq` vuelos.
+
+<br>
+
+```{r grafico-9, fig.cap= glue("Vuelos internacionales a Argentina por compañía aérea. Año {anio}")}
+
+int_ranking_aero %>% 
+  ggplot(aes(x = factor(empresa_agrup_def, levels = c("Aerolíneas Argentinas",
+                                                      "LATAM",
+                                                      "American Airlines",
+                                                      "Copa Airlines",
+                                                      "Avianca",
+                                                      "Paranair",
+                                                      "Iberia Airlines",
+                                                      "Boliviana de Aviación",
+                                                      "Otras Aerolíneas")),
+             y = pct)) +
+  geom_bar(aes(fill = empresa_agrup_def), stat = "identity", show.legend = F) +
+  geom_label(aes(label = paste0(format(pct, decimal.mark = ","), "%"), y = pct +3),
+             size = 2.5) +
+  scale_y_continuous(limits = c(0, 50),
+                     labels = function(x) paste0(x, "%")) +
+  scale_x_discrete(labels = function(empresa_agrup_def) str_wrap(empresa_agrup_def, width = 10))+
+  
+  scale_fill_dnmye(palette = "cualitativa")+
+  labs(#title = "Frecuencias áereas de vuelos internacionales a Argentina según compañía aérea",
+      # subtitle = "Año 2021",
+       y = "Distribución porcentual",
+       x = "",
+       fill = "",
+       caption = "Fuente: DNMyE en base a información de ANAC.") +
+  theme_minimal()
+
+```
+
+<br>
+
+```{r}
+aerolineas_int_21 <- internacional %>% 
+    filter(origen_pais_etiqueta != "Argentina") %>% 
+filter(anio_local == 2021) %>%
+  mutate(empresa_agrup_def = case_when(is.na(empresa_agrup_def) ~ "Otras Aerolineas",
+                                     T ~ as.character(empresa_agrup_def))) %>%
+  group_by(empresa_agrup_def) %>% 
+  summarise(frecuencias_21 = n()) %>% 
+  ungroup() %>% 
+  arrange(desc(frecuencias_21)) %>% 
+  mutate(posicion_21 = 1:n(),
+         participacion_21 = round(frecuencias_21/sum(frecuencias_21), 2))
+
+aerolineas_int_20 <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+filter(anio_local == 2020) %>%
+  mutate(empresa_agrup_def = case_when(is.na(empresa_agrup_def) ~ "Otras Aerolineas",
+                                     T ~ as.character(empresa_agrup_def))) %>%
+  group_by(empresa_agrup_def) %>% 
+  summarise(frecuencias_20 = n()) %>% 
+  arrange(-frecuencias_20) %>% 
+  mutate(posicion_20 = 1:n())
+
+aerolineas_int_19 <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+filter(anio_local == 2019) %>%
+  mutate(empresa_agrup_def = case_when(is.na(empresa_agrup_def) ~ "Otras Aerolineas",
+                                     T ~ as.character(empresa_agrup_def))) %>%
+  group_by(empresa_agrup_def) %>% 
+  summarise(frecuencias_19 = n()) %>% 
+  arrange(-frecuencias_19) %>% 
+  mutate(posicion_19= 1:n())
+
+aerolineas_int <- aerolineas_int_21 %>% 
+  full_join(aerolineas_int_20, by = "empresa_agrup_def") %>% 
+  full_join(aerolineas_int_19, by = "empresa_agrup_def") %>% 
+  filter(!is.na(posicion_21) & !is.na(posicion_20) & !is.na(posicion_19)) %>% 
+  mutate(variacion = round((frecuencias_21 - frecuencias_20)/frecuencias_20, 2),
+         variacion_19 = round((frecuencias_21 - frecuencias_19)/frecuencias_19, 2),
+         empresa_agrup_def = case_when(posicion_21 >= 20 ~ "Resto",
+                                                T ~ empresa_agrup_def)) %>%
+  group_by(empresa_agrup_def) %>% 
+  summarise(frecuencias_21 = sum(frecuencias_21),
+            frecuencias_20 = sum(frecuencias_20),
+            frecuencias_19 = sum(frecuencias_19),
+            posicion_21 = first(posicion_21),
+            posicion_20 = first(posicion_20),
+            posicion_19 = first(posicion_19)) %>% 
+  mutate(variacion = round((frecuencias_21 - frecuencias_20)/frecuencias_20, 2),
+         variacion_19 = round((frecuencias_21 - frecuencias_19)/frecuencias_19, 2),
+         participacion_21 = round(frecuencias_21/sum(frecuencias_21), 3),
+         posicion_21 = case_when(empresa_agrup_def == "Resto" ~ "-",
+                                 T ~ as.character(posicion_21)),
+         posicion_20 = case_when(empresa_agrup_def == "Resto" ~ "-",
+                                 T ~ as.character(posicion_20)),
+         posicion_19 = case_when(empresa_agrup_def == "Resto" ~ "-",
+                                 T ~ as.character(posicion_19))) %>%
+  arrange(-frecuencias_21)
+
+
+col_order <- c("empresa_agrup_def",
+               "posicion_21",
+               "posicion_20",
+               "posicion_19",
+               "frecuencias_21",
+               "frecuencias_20",
+               "frecuencias_19",
+               "variacion",
+               "variacion_19",
+               "participacion_21")
+
+aerolineas_int <- aerolineas_int[, col_order]
+
+resto <- aerolineas_int %>% 
+  filter(empresa_agrup_def == "Resto")
+
+aerolineas_int <- aerolineas_int %>% 
+  filter(empresa_agrup_def != "Resto") %>% 
+  rbind(resto)
+```
+
+```{r}
+ranking_aero_partcipacion <- aerolineas_int %>% 
+  select(empresa_agrup_def, posicion_21, posicion_20) %>% 
+  mutate(puestos = as.numeric(posicion_20) - as.numeric(posicion_21)) %>% 
+  arrange(-puestos) 
+
+aero_rank_particip_primer <- ranking_aero_partcipacion[1,1] %>% pull
+aero_rank_particip_segundo <- ranking_aero_partcipacion[2,1] %>% pull
+
+aero_rank_particip_primer_posiciones <- ranking_int_partcipacion[1,4] %>% pull
+aero_rank_particip_segundo_posiciones <- ranking_int_partcipacion[2,4] %>% pull
+
+aero_rank_particip_primer_posicion_21 <- ranking_aero_partcipacion[1,2] %>% pull
+aero_rank_particip_segundo_posiciones_21 <- ranking_aero_partcipacion[2,2] %>% pull
+
+aero_rank_particip_primer_posicion_20 <- ranking_aero_partcipacion[1,3] %>% pull
+aero_rank_particip_segundo_posiciones_20 <- ranking_aero_partcipacion[2,3] %>% pull
+```
+
+Una de las compañías que ganó más posiciones en el año `r as.character(anio)` fue **`r aero_rank_particip_primer`**, subiendo `r aero_rank_particip_primer_posiciones` posiciones en relación al año anterior (del puesto N° `r aero_rank_particip_primer_posicion_20` al N° `r aero_rank_particip_primer_posicion_21`).
+En segundo lugar, se encuentra **`r aero_rank_particip_segundo`**, pasando de la posición N° `r aero_rank_particip_segundo_posiciones_20` a la N° `r aero_rank_particip_segundo_posiciones_21`.
+
+```{r tabla-11}
+tabla_12_aerocomercial <- aerolineas_int %>%
+  gt() %>% 
+  # tab_header(
+  #   title = md("__RANKING DE FRECUENCIAS ÁREAS DE VUELOS INTERNACIONALES A ARGENTINA POR COMPAÑÍA AÉREA.__")) %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  cols_label(
+    empresa_agrup_def = md("**Compañía Aérea**"),
+    posicion_21 = md("**2021**"),
+    posicion_20 = md("**2020**"),
+    posicion_19 = md("**2019**"),
+    frecuencias_21 = md("**2021**"),
+    frecuencias_20 = md("**2020**"),
+    frecuencias_19 = md("**2019**"),
+    variacion = md("**var % i.a**"),
+    variacion_19 = md("**var % vs 2019**"),
+    participacion_21 = md("**Participación 2021 (%)**")) %>%
+  cols_align(
+    align = "center",
+    columns = everything())  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  fmt_percent(columns = c(8 : 10), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_spanner(
+    label = "Posición",
+    columns = contains("posicion"))%>% 
+  tab_spanner(
+    label = "Frecuencias",
+    columns = contains("frecuencias")
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")),
+    locations = cells_column_spanners(spanners = everything())
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = variacion,
+      rows = variacion < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = variacion,
+      rows = variacion > 0)
+    ) %>%
+ tab_style(
+    style = list(
+      cell_text(color = "#EE3D8F"),
+      cell_text(weight  = "bold")
+    ),
+    locations = cells_body(
+      columns = variacion_19,
+      rows = variacion_19 < 0)
+    ) %>% 
+  tab_style(
+    style = list(
+      cell_text(color = "#50B8B1"),
+      cell_text(weight =  "bold")
+    ),
+    locations = cells_body(
+      columns = variacion_19,
+      rows = variacion_19 > 0)
+    ) %>%
+  tab_caption(glue("Ranking de compañías aéreas por vuelos internacionales a Argentina. Año {anio}."))
+
+
+tabla_12_aerocomercial %>% 
+  tab_options(container.height = 600,
+  container.overflow.y = TRUE)
+
+
+```
+
+<br>
+
+```{r}
+aeros_int <- internacional %>% 
+      filter(origen_pais_etiqueta != "Argentina") %>% 
+filter(anio_local == 2021) %>%
+  group_by(destino_aeropuerto_etiqueta, destino_localidad_etiqueta) %>% 
+  summarise(frecuencias = n()) %>% 
+  ungroup() %>% 
+  mutate(pct = round(frecuencias/sum(frecuencias)*100, 1)) %>%
+  mutate(destino_aeropuerto_etiqueta = case_when(pct <= 1 ~ "Otros",
+                                               T ~ destino_aeropuerto_etiqueta),
+         destino_localidad_etiqueta = case_when(pct <= 1 ~ "Otros",
+                                               T ~ destino_localidad_etiqueta)) %>% 
+  group_by(destino_aeropuerto_etiqueta, destino_localidad_etiqueta) %>% 
+  summarise(frecuencias = sum(frecuencias)) %>%
+  ungroup() %>% 
+  mutate(pct = round(frecuencias/sum(frecuencias, na.rm = T)*100, 1)) %>% 
+  arrange(-frecuencias)
+
+aero_int_ranking_primer <- aeros_int[1,4] %>% pull %>% format(., decimal.mark = ",")
+aero_int_ranking_segundo <- aeros_int[2,4] %>% pull %>% format(., decimal.mark = ",")
+aero_int_ranking_tercer <- aeros_int[3,4] %>% pull %>% format(., decimal.mark = ",")
+aero_int_ranking_tercer_aero <- aeros_int[3,1] %>% pull %>% format(., decimal.mark = ",")
+aero_int_ranking_tercer_loc <- aeros_int[3,2] %>% pull %>% format(., decimal.mark = ",")
+
+```
+
+En relación a los vuelos internacionales según el aeropuerto de destino, en el año `r as.character(anio)` el **Aeropuerto Internacional Ministro Pistarini** de Ezeiza recibió el `r aero_int_ranking_primer`% de los arribos internacionales, seguido por el **Aeroparque Jorge Newbery** con el `r aero_int_ranking_segundo`% de participación.
+De los aeropuertos del interior, el más relevante fue el **`r aero_int_ranking_tercer_aero`** de `r aero_int_ranking_tercer_loc` con un `r aero_int_ranking_tercer`% de los vuelos.
+
+<br>
+
+```{r grafico-10, fig.cap= glue("Vuelos internacionales por aeropuerto de destino. Año {anio}.")}
+
+aeros_int %>% 
+  ggplot(aes(x = reorder(destino_aeropuerto_etiqueta, -frecuencias), y = pct)) +
+  geom_bar(aes(fill = destino_aeropuerto_etiqueta), stat = "identity", show.legend = F) +
+  geom_label(aes(label = paste0(format(pct, decimal.mark = ","), "%"), y = pct+5),
+             size = 2.5) +
+  scale_y_continuous(limits = c(0, 100),
+                     labels = function(x) paste0(x, "%")) +
+  scale_x_discrete(labels = function(destino_aeropuerto_etiqueta) str_wrap(destino_aeropuerto_etiqueta, width = 20))+
+  scale_fill_dnmye(palette = "cualitativa")+
+  labs(#title = "Frecuencias aéreas de vuelos internacionales por aeropuerto de destino",
+      # subtitle = "Años 2021",
+       y = "Distribución porcentual",
+       x = "",
+       fill = "",
+       caption = "Fuente: DNMyE en base a información de ANAC.") +
+  theme_minimal()
+
+# internacional %>% 
+#   filter(tipo_movimiento == "Aterrizaje" & anio_local == 2020) %>%
+#   group_by(destino_aeropuerto_etiqueta) %>% 
+#   summarise(frecuencias = n()) %>% 
+#   mutate(pct = round(frecuencias/sum(frecuencias)*100, 1)) %>%
+#   mutate(destino_aeropuerto_etiqueta = case_when(pct <= 1 ~ "Otros",
+#                                                  T ~ destino_aeropuerto_etiqueta)) %>% 
+#   group_by(destino_aeropuerto_etiqueta) %>% 
+#   summarise(frecuencias = sum(frecuencias)) %>%
+#   mutate(pct = round(frecuencias/sum(frecuencias, na.rm = T)*100, 1)) %>% 
+#   ggplot(aes(x = reorder(destino_aeropuerto_etiqueta, -frecuencias), y = pct)) +
+#   geom_bar(aes(fill = destino_aeropuerto_etiqueta), stat = "identity", show.legend = F) +
+#   geom_text(aes(label = paste0(pct, "%"), vjust = -.5)) +
+#   scale_y_continuous(limits = c(0, 100),
+#                      labels = function(x) paste0(x, "%")) +
+#   scale_x_discrete(labels = function(destino_aeropuerto_etiqueta) str_wrap(destino_aeropuerto_etiqueta, width = 20))+
+#   scale_fill_dnmye(palette = "cualitativa")+
+#   labs(title = "Frecuencias aéreas de vuelos internacionales por aeropuerto de destino",
+#        subtitle = "Año 2020",
+#        y = "Distribución porcentual",
+#        x = "",
+#        fill = "",
+#        caption = "Fuente: MINTUR en base a información de ANAC.") +
+#   theme_minimal()
+```
+
+<br>
+
+```{r}
+herfintal_int_19 <- internacional %>% 
+filter(origen_pais_etiqueta != "Argentina") %>% 
+filter(anio_local == 2019) %>% 
+  group_by(anio_local, origen_pais_etiqueta) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_19 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_19 = round(sum(cuota_19^2), 3)) %>% 
+  select(origen_pais_etiqueta, cuota_19, herfindal_19)
+
+herfintal_int_20 <- internacional %>%  # OJO CON ESTE CASO
+  filter(anio_local == 2020) %>% 
+      filter(origen_pais_etiqueta != "Argentina") %>% 
+group_by(anio_local, origen_pais_etiqueta) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_20 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_20 = round(sum(cuota_20^2), 3)) %>% 
+  select(origen_pais_etiqueta, cuota_20, herfindal_20)
+
+herfintal_int_21 <- internacional %>% 
+  filter(anio_local == 2021) %>% 
+        filter(origen_pais_etiqueta != "Argentina") %>% 
+group_by(anio_local, origen_pais_etiqueta) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_21 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_21 = round(sum(cuota_21^2), 3)) %>% 
+  select(origen_pais_etiqueta, cuota_21, herfindal_21)
+
+herfintal_int_pais <- data.table("origen_pais_etiqueta" = "Índice de Herfindahl",
+                                 "cuota_19" = herfintal_int_19$herfindal_19[1],
+                                 "cuota_20" = herfintal_int_20$herfindal_20[1],
+                                 "cuota_21" = herfintal_int_21$herfindal_21[1])
+
+herfintal_int_pais2 <- herfintal_int_19 %>% 
+  left_join(herfintal_int_20, by = "origen_pais_etiqueta") %>% 
+  left_join(herfintal_int_21, by = "origen_pais_etiqueta") %>%
+  select(-contains("herfin")) %>% 
+  arrange(-cuota_21) %>% 
+  bind_rows(herfintal_int_pais) 
+
+
+herfindah_orig_int <- (herfintal_int_pais %>% 
+                         mutate(across(.cols=c(2:4), ~ .*100)))[1,4] %>% pull %>% format(., decimal.mark = ",")
+
+herfindah_orig_int_cond <- if_else((herfintal_int_pais %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,4] < (herfintal_int_pais %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,3],
+                              paste0("una reducción de ", (herfintal_int_pais %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,4]-(herfintal_int_pais %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,3]),
+                              paste0("un aumento de ", (herfintal_int_pais %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,4]-(herfintal_int_pais %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,3]))
+```
+
+En `r as.character(anio)`, el índice de Herfindahl del origen de los vuelos hacia Argentina fue `r herfindah_orig_int`%, lo que supone `r herfindah_orig_int_cond` p.p con respecto al año anterior.
+En este marco, los vuelos desde **Brasil, Chile y Estados Unidos** concentran aproximadamente más de la mitad de las frecuencias aéreas internacionales totales hacia Argentina.
+
+```{r tabla-12 }
+tabla_13_aerocomercial <- herfintal_int_pais2 %>% 
+  gt() %>% 
+  # tab_header(
+  #   title = md("__ÍNDICE DE HERFINDAHL Y PARTICIPACIÓN PORCENTUAL DE LAS FRECUENCIAS AÉREAS DE VUELOS INTERNACIONALES POR PAÍS DE ORIGEN__")) %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  cols_label(
+    origen_pais_etiqueta = md("**País**"),
+    cuota_19 = md("**2019**"),
+    cuota_20 = md("**2020**"),
+    cuota_21 = md("**2021**")) %>% 
+  cols_align(
+    align = "center",
+    columns = c(2:4))  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  fmt_percent(columns = c(2:4), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_style(
+    style = list(
+      cell_fill(color = dnmye_colores("gris claro"))),
+    locations = cells_body(
+      rows = origen_pais_etiqueta == "Índice de Herfindahl")) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")),
+    locations = cells_body(
+      rows = origen_pais_etiqueta == "Índice de Herfindahl")) %>% 
+    sub_missing(columns = everything(),  missing_text = "0,0%") %>% 
+  tab_caption(glue("Índice de Herfindahl y participación porcentual de vuelos internacionales por país de origen. Años {anio-2} a {anio}."))
+
+tabla_13_aerocomercial %>% 
+  tab_options(container.height = 600,
+  container.overflow.y = TRUE)
+
+```
+
+<br>
+
+```{r}
+herfintal_aero_int_19 <- internacional %>% 
+  filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local == 2019) %>%
+group_by(anio_local, empresa_agrup_def) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_19 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_19 = round(sum(cuota_19^2), 3)) %>% 
+  select(empresa_agrup_def, cuota_19, herfindal_19)
+
+herfintal_aero_int_20 <- internacional %>% 
+    filter(origen_pais_etiqueta != "Argentina") %>% 
+filter(anio_local == 2020) %>%
+  group_by(anio_local, empresa_agrup_def) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_20 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_20 = round(sum(cuota_20^2), 3)) %>% 
+  select(empresa_agrup_def, cuota_20, herfindal_20)
+
+herfintal_aero_int_21 <- internacional %>% 
+    filter(origen_pais_etiqueta != "Argentina") %>% 
+  filter(anio_local == 2021) %>%
+  group_by(anio_local, empresa_agrup_def) %>% 
+  summarise(frecuencias = sum(vuelos, na.rm = T)) %>% 
+  group_by(anio_local) %>% 
+  mutate(frecuencias_totales = sum(frecuencias, na.rm = T)) %>% 
+  ungroup() %>% 
+  mutate(cuota_21 = round((frecuencias/frecuencias_totales), 3),
+         herfindal_21 = round(sum(cuota_21^2), 3)) %>% 
+  select(empresa_agrup_def, cuota_21, herfindal_21)
+
+herfintal_aerolinea_int<- data.table("empresa_agrup_def" = "Índice de Herfindahl",
+                                 "cuota_19" = herfintal_aero_int_19$herfindal_19[1],
+                                 "cuota_20" = herfintal_aero_int_20$herfindal_20[1],
+                                 "cuota_21" = herfintal_aero_int_21$herfindal_21[1])
+
+herfintal_aerolinea_int2 <- herfintal_aero_int_19 %>% 
+  left_join(herfintal_aero_int_20, by = "empresa_agrup_def") %>% 
+  left_join(herfintal_aero_int_21, by = "empresa_agrup_def") %>%
+  select(-contains("herfin")) %>% 
+  arrange(-cuota_21) %>% 
+  bind_rows(herfintal_aerolinea_int) 
+
+herfindah_aero_int <- (herfintal_aerolinea_int %>% 
+                         mutate(across(.cols=c(2:4), ~ .*100)))[1,4] %>% pull %>% format(., decimal.mark = ",")
+
+herfindah_aero_int_cond <- if_else((herfintal_aerolinea_int %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,4] < (herfintal_aerolinea_int %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,3],
+                              paste0("una reducción de ", (herfintal_aerolinea_int %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,4]-(herfintal_aerolinea_int %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,3]),
+                              paste0("un crecimiento de ", (herfintal_aerolinea_int %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,4]-(herfintal_aerolinea_int %>% mutate(across(.cols=c(2:4), ~ .*100)))[1,3]))
+
+aeros_int_21 <- n_distinct(herfintal_aero_int_21$empresa_agrup_def)
+aeros_int_20 <- n_distinct(herfintal_aero_int_20$empresa_agrup_def)
+
+```
+
+En el año `r as.character(anio)`, volaban al país `r aeros_int_21` aerolíneas, en comparación a las `r aeros_int_20` que lo hacían un año antes.
+Para medir el nivel de concentración de vuelos internacionales según compañía aérea, se utilizó aquí también el Índice de Herfindahl.
+Para el `r as.character(anio)`, el índice registra un valor de `r herfindah_aero_int`%, lo que supone `r herfindah_aero_int_cond`p.p.
+con respecto al año anterior.
+En este contexto, **Aerolíneas Argentinas** fue la empresa que registró la mayor cantidad de vuelos internacionales, aproximadamente un tercio del total de frecuencias, seguida por **LATAM**.
+
+```{r tabla-14}
+
+tabla_14_aerocomercial <- herfintal_aerolinea_int2 %>% 
+  drop_na() %>% 
+  gt() %>% 
+  # tab_header(
+  #   title = md("__ÍNDICE DE HERFINDAHL Y PARTICIPACIÓN PORCENTUAL DE LAS FRECUENCIAS AÉREAS DE VUELOS INTERNACIONALES POR COMPAÑÍA AÉREA__")) %>% 
+  tab_source_note(
+    source_note = md("**Fuente:** DNMyE en base a información de ANAC.")) %>% 
+  cols_label(
+    empresa_agrup_def = md("**Compañía aérea**"),
+    cuota_19 = md("**2019**"),
+    cuota_20 = md("**2020**"),
+    cuota_21 = md("**2021**")) %>% 
+  cols_align(
+    align = "center",
+    columns = c(2:4))  %>% 
+  opt_table_font(
+    font = list(
+      google_font(name = "Encode Sans"))) %>% 
+  fmt_percent(columns = c(2:4), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_style(
+    style = list(
+      cell_fill(color = dnmye_colores("gris claro"))),
+    locations = cells_body(
+      rows = empresa_agrup_def == "Índice de Herfindahl")) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")),
+    locations = cells_body(
+      rows = empresa_agrup_def == "Índice de Herfindahl")) %>% 
+  tab_caption(glue("Índice de Herfindahl y participación porcentual de vuelos internacionales por compañía aérea. Años {anio-2} a {anio}."))
+
+tabla_14_aerocomercial %>% 
+  tab_options(container.height = 600,
+  container.overflow.y = TRUE)
+
+```
+
+<br>
+
+## Recursos disponibles
+
+Los datos que se muestran en este capítulo forman parte del Sistema de Información Turística de la Argentina (SINTA) <https://www.yvera.tur.ar/sinta/> de la Dirección Nacional de Mercados y Estadística (DNMyE).
+Los mismos se presentan a través de distintos formatos:
+
+-   [Reporte](https://tableros.yvera.tur.ar/conectividad.html): Reporte de actualización mensual con indicadores clave para el turismo respecto a la actividad aerocomercial.
+
+-   [Tablero](https://tableros.yvera.tur.ar/conectividad/): Tablero con datos de vuelos de cabotaje y vuelos internacionales a partir de la información provista por la ANAC.

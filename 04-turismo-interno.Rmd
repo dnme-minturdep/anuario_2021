@@ -1,0 +1,2043 @@
+---
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+
+```{r include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.topcaption=TRUE)
+
+library(gt)
+library(tidyverse) 
+library(lubridate) 
+library(hrbrthemes) 
+library(ggtext) 
+library(glue)
+library(comunicacion)
+library(evyth)
+library(haven)
+library(herramientas)
+
+options(scipen = 99)
+
+Anio <- "2021"
+
+```
+
+# **Turismo Interno en Argentina** {#turismo-interno}
+## Introducción
+
+En este capítulo se presenta un resumen de los principales indicadores del turismo interno de la Argentina resultantes de la Encuesta de Viajes y Turismo de los Hogares (EVyTH). A partir de este relevamiento se realizó una descripción del comportamiento turístico de los argentinos en 2021, como también de los resultados del turismo interno.
+
+El objetivo de la EVyTH es medir y caracterizar el flujo y el gasto de los viajes turísticos (viajes con pernocte y visitas de un día o excursiones) que las personas residentes en Argentina realizan tanto dentro del país (turismo interno) como al exterior (turismo emisivo). En conjunto, los viajes turísticos relevados dan cuenta del turismo nacional.
+
+Cabe destacar también que a partir de 2012 la EVyTH se realiza de manera mensual entrevistando telefónicamente unos dos mil cuatrocientos hogares residentes en las capitales de todas las provincias argentinas y en los aglomerados urbanos que no son capitales pero cuya población es superior a los cien mil habitantes. Sumados, ambos casos concentran actualmente casi dos tercios de la población total del país. Este relevamiento permite realizar un seguimiento pormenorizado de lo que ocurre en el turismo interno, observando y analizando las variaciones que se producen mes a mes y trimestre a trimestre, confrontándolas
+con el mismo período del año anterior.
+
+Gracias a la continuidad temporal en el desarrollo de la encuesta, es posible la observación sostenida de un grupo de variables, lo que permite vislumbrar las características estructurales propias de la población que realiza viajes en el país.
+
+## Comportamiento turístico
+
+El objetivo de este apartado es caracterizar el perfil de las personas que en el año `r as.character(Anio)` realizaron al menos un viaje turístico[^viaje-turistico].  
+
+
+[^viaje-turistico]: Se entiende por viaje turístico a todo desplazamiento con una duración inferior a un año que tiene como destino un lugar ubicado fuera del entorno habitual del hogar, es decir distante a más de 40Km (CABA y Partidos del GBA) / 20km (resto de los aglomerados) del lugar de residencia permanente del hogar, siempre y cuando ese lugar no sea visitado con frecuencia semanal. En los desplazamientos a segundas viviendas del hogar no rige el criterio de entorno habitual y se los considera que siempre son un viaje turístico (por definición). Se excluyen los desplazamientos que tienen como principal motivo el desempeño de una actividad remunerada bajo una relación salarial o cuando el traslado forma parte del trabajo. Si quien se traslada fuera del entorno habitual pernocta al menos una noche en el lugar visitado se trata de un viaje propiamente dicho; en cambio, si no pernocta, se trata de una visita de un día o excursión.
+
+```{r}
+
+comptur <- read_file_srv("/srv/DataDNMYE/evyth/comportamiento_turistico/EVyTH_BASE USUARIO_COMPTUR2006-10-11a22_PERSONAS.sav") %>% 
+  zap_label()
+
+data_graph1 <- comptur %>%
+  filter(!anio %in% c(2009,2008,2007, 2022)) %>%
+  group_by(anio, al_menos_un_viaje) %>%
+  summarise(participacion = sum(pondera, na.rm = T)) %>%
+  ungroup() %>%
+  group_by(anio) %>%
+  mutate(total = sum(participacion)) %>%
+  ungroup() %>%
+  mutate(participacion = participacion/total,
+         al_menos_un_viaje = case_when(al_menos_un_viaje == 1  ~ "Si",
+                                       TRUE ~ "No"))
+
+data_viaje <- data_graph1 %>% 
+  filter(anio == Anio, al_menos_un_viaje == "Si") %>% 
+  pull(participacion) %>% lbl_percent(decimales = 0)
+
+data_var <- data_graph1 %>% filter(anio %in% c(Anio, 2020), al_menos_un_viaje == "Si") %>% mutate(var = (participacion-lag(participacion))*100) %>% filter(anio == Anio) %>% 
+  pull(var) %>% 
+  lbl_decimal()
+```
+
+Del total de personas de un año y más que residen en los grandes aglomerados urbanos del país, el `r data_viaje` realizó al menos un viaje turístico durante el año `r as.character(Anio)`, lo que representó `r ifelse(data_viaje > 0, "un incremento", "una disminución")` de `r data_var` p.p. respecto del año anterior.
+
+```{r comtur1, fig.cap=glue("Personas de un año y más que realizaron al menos un viaje al año. Distribución porcentual. Años 2006 y 2010-{Anio}.")}
+
+data_graph1 %>% 
+  mutate(anio = as.character(anio)) %>% 
+  ggplot(aes(anio, participacion, group = al_menos_un_viaje)) +
+  geom_col(position = position_dodge(), aes(fill = al_menos_un_viaje)) +
+  geom_label(aes(label = paste0(format(round(participacion*100, 1), decimal.mark = ","), "%")), label.size = 0.2,
+             label.padding =  unit(0.15, "lines"),
+             position = position_dodge(width = 0.9), vjust = -0.2, size = 2.5) +
+  scale_fill_dnmye() +
+  scale_x_discrete(breaks = c("2006", as.character(seq(2010, max(comptur$anio))))) +
+  scale_y_percent(limits = c(0,1)) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.caption  = element_markdown()) +
+  labs(x = "", y = "", fill = "", caption = md("**Fuente**: DNMyE en base a información de la EVyTH"))
+
+```
+
+```{r}
+tabla1 <- comptur %>%
+  filter(anio %in% c(2019,2020,Anio)) %>%
+  group_by(anio, al_menos_un_viaje, region_origen) %>%
+  summarise(participacion = sum(pondera, na.rm = T)) %>%
+  ungroup() %>%
+  group_by(anio, region_origen) %>%
+  mutate(total = sum(participacion)) %>%
+  ungroup() %>%
+  mutate(participacion = participacion/total,
+         anio = paste0("anio_",as.character(anio))) %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  crear_etiqueta("region_origen") %>% 
+  select(-c(al_menos_un_viaje, total)) %>% 
+  pivot_wider(names_from = "anio", values_from = "participacion") %>% 
+  mutate(#var_anio_06 = (anio_2021-anio_2006)*100,
+         var_anio_20 = (anio_2021-anio_2020)*100,
+          var_anio_19 = (anio_2021-anio_2019)*100,
+         region_origen = str_replace(region_origen, "Centro", "Córdoba"),
+         region_origen = str_replace(region_origen, "Ciudad de Buenos Aires", "CABA"),
+         region_origen = str_replace(region_origen, "Provincia de Buenos Aires", "PBA"))
+
+region_max <- tabla1 %>% 
+  select(region_origen, value = starts_with(paste0("anio_",Anio))) %>% 
+  filter(value == max(value)) %>% 
+  pull(region_origen)
+
+value_max <- tabla1 %>% select(region_origen, var_anio_19) %>% arrange(var_anio_19) %>% slice(1) %>% pull (var_anio_19)
+```
+
+Cuando se analizó la distribución de personas que realizaron al menos un viaje en el año por región de residencia se observó que disminuyeron, en puntos porcentuales, las proporciones del año `r as.character(Anio)` respecto de los valores prepandemia para todas las regiones. Esta caída se acentuó en la región `r region_max` (`r value_max %>% lbl_decimal()` p.p.).
+
+```{r comtur2}
+
+total_tabla1 <- comptur %>%
+  filter(anio %in% c(2019,2020,Anio)) %>%
+  group_by(anio, al_menos_un_viaje) %>%
+  summarise(participacion = sum(pondera, na.rm = T)) %>%
+  ungroup() %>%
+  group_by(anio) %>%
+  mutate(total = sum(participacion)) %>%
+  ungroup() %>%
+  mutate(region_origen = "Total", 
+         participacion = participacion/total,
+         anio = paste0("anio_",as.character(anio))) %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  select(-c(al_menos_un_viaje, total)) %>% 
+  pivot_wider(names_from = "anio", values_from = "participacion") %>% 
+  mutate(#var_anio_06 = (anio_2021-anio_2006)*100,
+         var_anio_20 = (anio_2021-anio_2020)*100,
+          var_anio_19 = (anio_2021-anio_2019)*100)
+
+total_tabla1 <- total_tabla1 %>% 
+  rbind(tabla1) %>%
+  gt()%>% 
+  cols_label(region_origen = "Región de residencia",
+             #anio_2006 = "2006",
+             anio_2020 = "2020",
+             anio_2019 = "2019",
+             anio_2021 = "2021",
+             #var_anio_06 = "Var p.p. \n2021/2006",
+             var_anio_20 = "Var p.p. \n2021/2020",
+             var_anio_19 = "Var p.p. \n2021/2019")  %>%
+  gt_theme_dnmye(var_total = region_origen) %>% 
+  fmt_number(columns = c(5,6), decimals = 1, dec_mark = ",", sep_mark = ".") %>%
+  fmt_percent(columns = c(2,3,4), decimals = 1, dec_mark = ",", sep_mark = ".") %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente:** DNMyE en base a información de la EVyTH")) %>% 
+  tab_caption(caption = md(glue("Personas de un año y más que realizaron al menos un viaje al año, por año según región de residencia. Distribución porcentual. Años 2019/2020/{Anio}.")))
+
+
+total_tabla1
+
+```
+
+```{r}
+genero <- comptur %>%
+  filter(anio %in% c(2012:Anio)) %>%
+    crear_etiqueta(variables = "p005") %>% 
+  group_by(anio, al_menos_un_viaje, sexo = p005) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio, sexo) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(categoria = "Sexo")
+
+j_genero <- comptur %>%
+  filter(anio %in% c(2012:Anio)) %>%
+    crear_etiqueta(variables = "j_sexo") %>% 
+  group_by(anio, al_menos_un_viaje, sexo = j_sexo) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio, sexo) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(categoria = "Sexo del jefe")
+
+total <-  comptur %>%
+  filter(anio %in% c(2012:Anio)) %>%
+  group_by(anio, al_menos_un_viaje) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(sexo = "Total",
+         categoria = "")
+
+tabla_genero <- rbind(total, genero, j_genero) %>% 
+  select(-c(al_menos_un_viaje, turistas)) %>% 
+  pivot_wider(names_from = "anio", values_from = "participacion",
+              names_prefix = "porc_") %>% 
+  mutate(pp_var = (porc_2021 - porc_2020) * 100)
+
+texto_mujer <- tabla_genero %>% 
+  filter(categoria == "Sexo", sexo == "Mujer") %>% 
+  pull(contains(as.character(Anio))) %>% 
+  lbl_percent()
+
+texto_varon <- tabla_genero %>% 
+  filter(categoria == "Sexo", sexo == "Varón") %>% 
+  pull(contains(as.character(Anio))) %>% 
+  lbl_percent()
+
+texto_var_mujer <- tabla_genero %>% 
+  filter(categoria == "Sexo", sexo == "Mujer") %>% 
+  pull(pp_var) %>% 
+  lbl_decimal()
+
+texto_var_varon <- tabla_genero %>% 
+  filter(categoria == "Sexo", sexo == "Varón") %>% 
+  pull(pp_var) %>% 
+  lbl_decimal()
+
+texto_var_mujer_j <- tabla_genero %>% 
+  filter(categoria == "Sexo del jefe", sexo == "Mujer") %>% 
+  pull(pp_var) %>% 
+  lbl_decimal()
+
+texto_var_varon_j <- tabla_genero %>% 
+  filter(categoria == "Sexo del jefe", sexo == "Varón") %>% 
+  pull(pp_var) %>% 
+  lbl_decimal()
+```
+
+Por otro lado, se comprobó que la participación de acuerdo al sexo fue, en `r as.character(Anio)`, del `r texto_mujer` en las mujeres y del `r texto_varon` en los varones, valores por debajo de la prepandemia. Mientras que las variaciones en comparación al año 2020 fueron del `r texto_var_mujer` p.p. y `r texto_var_varon` p.p., respectivamente. Por su parte, en relación al sexo del jefe de hogar las participaciones variaron en un `r texto_var_mujer_j` p.p. las mujeres y `r texto_var_varon_j` p.p. los varones.
+
+```{r comtur3, fig.cap=glue()}
+
+tabla_genero_f <- tabla_genero %>% 
+  gt(groupname_col = "categoria") %>% 
+  cols_label(sexo = "",
+             porc_2012 = "2012",
+             porc_2013 = "2013",
+             porc_2014 = "2014",
+             porc_2015 = "2015",
+             porc_2016 = "2016",
+             porc_2017 = "2017",
+             porc_2018 = "2018",
+             porc_2019 = "2019",
+             porc_2020 = "2020",
+             porc_2021 = "2021",
+              pp_var = glue("Var. i.a. en p.p. \n{Anio}/2020")) %>% 
+  #fmt_number(columns = pp_var, decimals = 1, dec_mark = ",") %>% 
+  gt_theme_dnmye(var_total = sexo) %>% 
+  tab_options(row_group.font.weight = "bold") %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(caption = md(glue("Personas de un año y más que realizaron al menos un viaje al año por sexo y sexo del jefe del hogar. Distribución porcentual. Años 2012-{Anio}.")))
+
+tabla_genero_f
+```
+
+```{r}
+edad <- comptur %>%
+  filter(anio %in% c(2012:Anio)) %>%
+    crear_etiqueta(variables = "p006_agrup") %>% 
+  group_by(anio, al_menos_un_viaje, edad = p006_agrup) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio, edad) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(categoria = "Edad")
+
+j_edad <- comptur %>%
+  filter(anio %in% c(2012:Anio)) %>%
+    crear_etiqueta(variables = "j_edad") %>% 
+  group_by(anio, al_menos_un_viaje, edad = j_edad) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio, edad) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(categoria = "Edad del jefe")
+
+total <-  comptur %>%
+  filter(anio %in% c(2012:Anio)) %>%
+  group_by(anio, al_menos_un_viaje) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(edad = "Total",
+         categoria = "")
+
+tabla_edad <- rbind(total, edad, j_edad) %>% 
+  select(-c(al_menos_un_viaje, turistas)) %>% 
+  pivot_wider(names_from = "anio", values_from = "participacion",
+              names_prefix = "porc_") %>% 
+  mutate(pp_var = (porc_2021 - porc_2020) * 100)
+
+texto_edad <- tabla_edad %>% 
+  filter(categoria == "Edad") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+  pull(edad)
+
+texto_edad_val <- tabla_edad %>% 
+  filter(categoria == "Edad") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+  pull(porc_2021) %>% 
+  lbl_percent()
+
+texto_edad_var <- tabla_edad %>% 
+  filter(categoria == "Edad") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+  pull(pp_var) %>% 
+  lbl_decimal()
+
+texto_edad_var_pre <- tabla_edad %>% 
+  filter(categoria == "Edad") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+  mutate(pp_var_pre = (porc_2021 - porc_2019) * 100) %>% 
+  pull(pp_var_pre) %>% 
+  lbl_decimal()
+
+texto_edad_j <- tabla_edad %>% 
+  filter(categoria == "Edad del jefe") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+    pull(edad)
+
+texto_edad_val_j <- tabla_edad %>% 
+  filter(categoria == "Edad del jefe") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+  pull(porc_2021) %>% 
+  lbl_percent()
+
+texto_edad_var_j <- tabla_edad %>% 
+  filter(categoria == "Edad del jefe") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+  pull(pp_var) %>% 
+  lbl_decimal()
+```
+
+En ese mismo año, la distribución de personas que viajaron por edad mostró una mayor proporción en el grupo etario de **`r texto_edad`** con un valor del `r texto_edad_val`, lo cual representó una variación de `r texto_edad_var` p.p. respecto del año previo y del `r texto_edad_var_pre` respecto de la prepandemia. Considerando la edad del jefe de hogar, el grupo de **`r texto_edad_j`** es el que presentó una mayor proporción de personas que realizaron al menos un viaje (`r texto_edad_val_j`), con una variación interanual de `r texto_edad_var_j` p.p.
+
+```{r comtur4, fig.cap=glue()}
+
+tabla_edad_f <- tabla_edad %>% 
+  drop_na() %>%
+  arrange(match(edad, c("Total", "Menos de 14 años", "14 a 29 años", 
+                        "Hasta 29 años", "30 a 44 años",
+                         "45 a 59 años", "60 años o más"))) %>% 
+  gt(groupname_col = "categoria") %>% 
+  cols_label(edad = "",
+             porc_2012 = "2012",
+             porc_2013 = "2013",
+             porc_2014 = "2014",
+             porc_2015 = "2015",
+             porc_2016 = "2016",
+             porc_2017 = "2017",
+             porc_2018 = "2018",
+             porc_2019 = "2019",
+             porc_2020 = "2020",
+             porc_2021 = "2021",
+             pp_var = glue("Var. i.a. en p.p. \n{Anio}/2020")) %>% 
+  #fmt_number(columns = pp_var, decimals = 1, dec_mark = ",") %>% 
+  gt_theme_dnmye(var_total = edad) %>% 
+  tab_options(row_group.font.weight = "bold") %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(caption = md(glue("Personas de un año y más que realizaron al menos un viaje en el año por edad y edad del jefe del hogar. Distribución porcentual. Años 2012-{Anio}.")))
+  
+tabla_edad_f
+```
+
+```{r}
+educ <- comptur %>%
+  filter(anio %in% c(2012:Anio),
+         p006 > 18 & p006 < 66) %>%
+  crear_etiqueta(variables = c("nivel_ed"), drop_vars = T) %>%
+  mutate(nivel_ed = case_when(nivel_ed %in% 
+                                c("Post grado / maestría / doctorado incompleto o completo", "Universitario completo", "Terciario completo") ~ "Superior completa o más",
+                              nivel_ed %in% c("Universitario incompleto","Terciario incompleto","Secundario completo") ~ "Secundaria completa - superior incompleta",
+                              nivel_ed %in% c("Primario completo","Secundario incompleto") ~ "Primaria completa - secundaria incompleta",
+                              nivel_ed %in% c("Primario incompleto","Sin instrucción / nunca asistió") ~ "Hasta primaria incompleta",
+                              TRUE ~ nivel_ed)) %>% 
+  group_by(anio, al_menos_un_viaje, nivel_ed) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio, nivel_ed) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(categoria = "Máximo nivel educativo")
+
+j_educ <- comptur %>%
+  filter(anio %in% c(2012:Anio),
+         p006 > 18 & p006 < 66) %>%
+    crear_etiqueta(variables = "j_nivel_ed") %>% 
+  group_by(anio, al_menos_un_viaje, nivel_ed = j_nivel_ed) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio, nivel_ed) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(categoria = "Máximo nivel educativo del jefe")
+
+total <-  comptur %>%
+  filter(anio %in% c(2012:Anio),
+         p006 > 18 & p006 < 66) %>%
+  group_by(anio, al_menos_un_viaje) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(nivel_ed = "Total",
+         categoria = "")
+
+tabla_educ <- rbind(total, educ, j_educ) %>% 
+  select(-c(al_menos_un_viaje, turistas)) %>% 
+  pivot_wider(names_from = "anio", values_from = "participacion",
+              names_prefix = "porc_") %>% 
+  mutate(pp_var = (porc_2021 - porc_2020) * 100) %>% 
+  filter(!is.na(nivel_ed))
+
+
+texto_educ <- tabla_educ %>% 
+  filter(categoria == "Máximo nivel educativo") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+  pull(nivel_ed)
+
+texto_educ_val <- tabla_educ %>% 
+  filter(categoria == "Máximo nivel educativo") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+  pull(porc_2021) %>% 
+  lbl_percent()
+
+texto_educ_var_pre <- tabla_educ %>% 
+  filter(categoria == "Máximo nivel educativo") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+   mutate(pp_var_pre = (porc_2021 - porc_2019) * 100) %>% 
+  pull(pp_var_pre) %>% 
+  lbl_decimal()
+
+texto_educ_var <- tabla_educ %>% 
+  filter(categoria == "Máximo nivel educativo") %>% 
+  filter(porc_2021 == max(porc_2021, na.rm = T)) %>% 
+  pull(pp_var) %>% 
+  lbl_decimal()
+
+texto_educ_j <- tabla_educ %>% 
+  filter(categoria == "Máximo nivel educativo del jefe") %>% 
+  filter(pp_var == max(pp_var, na.rm = T)) %>% 
+    pull(nivel_ed)
+
+texto_educ_var_j <- tabla_educ %>% 
+  filter(categoria == "Máximo nivel educativo del jefe") %>% 
+  filter(pp_var == max(pp_var, na.rm = T)) %>% 
+  pull(pp_var) %>% 
+  lbl_decimal()
+```
+
+Cuando se analizaron los viajes de las personas entre 19 y 65 años por nivel educativo se observó que a medida que aumentaba el nivel educativo, también lo hacía la proporción de personas que habían realizado al menos un viaje. Así, la categoría de **"`r texto_educ`"** tuvo la mayor proporción con un valor de `r texto_educ_val` y una variación de `r texto_educ_var` p.p. respecto del año anterior. En comparación con los valores prepandemia, este grupo disminuyó su proporción en `r texto_educ_var_pre` p.p.
+
+Por otra parte, en el caso del nivel educativo del jefe del hogar, se destacó que el grupo **"`r texto_educ_j`"** presentó un crecimiento de `r texto_educ_var_j` p.p.
+
+```{r comtur5, fig.cap=glue()}
+
+tabla_educ <- tabla_educ %>% 
+  # drop_na() %>%
+  # arrange(match(nivel_ed, c("Total", "Menos de 14 años", "14 a 29 años", 
+  #                       "Hasta 29 años", "30 a 44 años",
+  #                        "45 a 59 años", "60 años o más"))) %>% 
+  gt(groupname_col = "categoria") %>% 
+  cols_label(nivel_ed = "",
+             porc_2012 = "2012",
+             porc_2013 = "2013",
+             porc_2014 = "2014",
+             porc_2015 = "2015",
+             porc_2016 = "2016",
+             porc_2017 = "2017",
+             porc_2018 = "2018",
+             porc_2019 = "2019",
+             porc_2020 = "2020",
+             porc_2021 = "2021",
+             pp_var = glue("Var. i.a. en p.p. \n{Anio}/2020")) %>% 
+  fmt_number(columns = pp_var, decimals = 1, dec_mark = ",") %>% 
+  gt_theme_dnmye(var_total = nivel_ed) %>% 
+   tab_options(row_group.font.weight = "bold",
+               container.height = 600,
+              container.overflow.y = T) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(md(glue("Personas de 19 a 65 años que realizaron al menos un viaje en el año por nivel educativo y nivel educativo del Jefe del hogar, distribución porcentual. Años 2012-{Anio}.")))
+
+tabla_educ
+
+```
+
+
+```{r}
+cond <- comptur %>%
+  filter(anio %in% c(Anio),
+          p006 > 18 & p006 < 66) %>%
+    crear_etiqueta(variables = "cond_act", drop_vars = T) %>% 
+  group_by(anio, al_menos_un_viaje, cond_act) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio, cond_act) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(categoria = "Condición de actividad")
+
+j_cond <- comptur %>%
+  filter(anio == Anio) %>%
+    crear_etiqueta(variables = "j_cond_act") %>% 
+  group_by(anio, al_menos_un_viaje, cond_act = j_cond_act) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio, cond_act) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(categoria = "Condición de actividad del jefe")
+
+
+tabla_cond <- rbind(cond, j_cond) %>% 
+  filter(cond_act != "Ns./ Nr.") %>% 
+  select(c(cond_act, categoria, participacion)) %>% 
+  mutate(cond_act = factor(cond_act, levels = c("Ocupado",
+                                                "Desocupado",
+                                                "Inactivo")))
+
+texto_cond_cat_min <- tabla_cond %>% 
+  filter(categoria == "Condición de actividad") %>% 
+  filter(participacion == min(participacion)) %>% 
+  pull(cond_act) %>% 
+  as.character()
+
+texto_cond_cat_max <- tabla_cond %>% 
+  filter(categoria == "Condición de actividad") %>% 
+  filter(participacion == max(participacion)) %>% 
+  pull(cond_act) %>% 
+  as.character()
+
+texto_cond_val_min <- tabla_cond %>% 
+  filter(categoria == "Condición de actividad") %>% 
+  filter(participacion == min(participacion)) %>% 
+  pull(participacion) %>% 
+  lbl_percent()
+
+texto_cond_val_max <- tabla_cond %>% 
+  filter(categoria == "Condición de actividad") %>% 
+  filter(participacion == max(participacion)) %>% 
+  pull(participacion) %>% 
+  lbl_percent()
+
+
+jefe_max <- tabla_cond %>% filter(categoria=="Condición de actividad del jefe") %>% arrange(participacion) %>% slice(n()) %>% pull(cond_act)
+
+jefe_max_value <- tabla_cond %>% filter(categoria=="Condición de actividad del jefe") %>% arrange(participacion) %>% slice(n()) %>% pull(participacion)
+
+jefe_min <- tabla_cond %>% filter(categoria=="Condición de actividad del jefe") %>% arrange(participacion) %>% slice(1) %>% pull(cond_act)
+
+jefe_min_value <- tabla_cond %>% filter(categoria=="Condición de actividad del jefe") %>% arrange(participacion) %>% slice(1) %>% pull(participacion)
+
+```
+
+En ese mismo rango etario y de acuerdo a la condición de actividad de las personas, el grupo que menos viajó fue el de **`r paste0(tolower(texto_cond_cat_min),"s")`** (`r texto_cond_val_min`), mientras que la mayor proporción se presentó en los **`r  paste0(tolower(texto_cond_cat_max),"s")`** (`r texto_cond_val_max`). Asimismo, cuando se verificó la condición de actividad del jefe de hogar, se verificó que el grupo que menos viajó fue el de **`r paste0(tolower(jefe_min), "s")`** (`r jefe_min_value %>% lbl_percent()`), mientras que la mayor proporción se verificó en **`r paste0(tolower(jefe_max), "s")`** (`r jefe_max_value %>% lbl_percent()`).  
+
+```{r comtur6, fig.cap=glue("Personas de 19 a 65 años que realizaron al menos un viaje en el año por condición de actividad y condición de actividad del jefe del hogar. Distribución porcentual. Año {Anio}.")}
+
+ggplot(tabla_cond) +
+  geom_col(aes(cond_act, participacion, fill = categoria),
+           position = "dodge") +
+  geom_label(aes(x = cond_act, y = participacion, group = categoria,
+                label = paste0(format(round(participacion*100, 1), decimal.mark = ","), "%")),
+            position = position_dodge(1), size = 2.5) +
+  scale_fill_dnmye() +
+  scale_y_percent(limits = c(0, max(tabla_cond$participacion)*1.1)) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.caption  = element_markdown()) +
+  labs(x = "", y = "", fill = "", caption = md("**Fuente**: DNMyE en base a información de la EVyTH"))
+```
+
+```{r}
+quintil <- comptur %>%
+  filter(anio %in% c(Anio, 2019,2020)) %>%
+  group_by(anio, al_menos_un_viaje, quintil_pcf_visitante) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio, quintil_pcf_visitante) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(quintil_pcf_visitante = str_squish(str_extract(as_factor(quintil_pcf_visitante), "[^(]+")))
+
+total <-  comptur %>%
+  filter(anio %in% c(2019, 2020, Anio)) %>%
+  group_by(anio, al_menos_un_viaje) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  filter(al_menos_un_viaje == 1) %>% 
+  mutate(quintil_pcf_visitante = "Total")
+
+tabla_quintil <- rbind(quintil, total) %>% 
+  mutate(anio = factor(anio, 
+                       c(as.character(Anio),"2020","2019"))) %>% 
+  group_by(quintil_pcf_visitante) %>% 
+  mutate(pp_var = (participacion-lag(participacion,1 ))*100) %>% 
+  ungroup()
+
+```
+
+Cuando se analizó el nivel de ingreso de las personas, se  observó que a mayor ingreso, mayor la proporción de personas que viajaron. Teniendo en consideración el impacto de la pandemia en las proporciones de personas que viajaron, la caída respecto del 2019 presentó valores menores en las personas con mayor y menor ingreso (quintiles 1 y 5, con -7,6 p.p. y -7,2 p.p. respectivamente).
+
+```{r comtur7, fig.cap=glue("Personas de un año y más que realizaron al menos un viaje al año, por quintil de ingreso per cápita familiar. Distribución porcentual. Años 2019/2020/{Anio}.")}
+
+ggplot(tabla_quintil) +
+  geom_col(aes(quintil_pcf_visitante, participacion, fill = anio), position = "dodge") +
+   geom_label(aes(x = quintil_pcf_visitante, y = participacion, group = anio,
+                label = paste0(format(round(participacion*100, 1), decimal.mark = ","), "%")),
+            position = position_dodge(1), size = 2.5, hjust = -0.1) +
+  scale_fill_dnmye() +
+  scale_y_percent(limits = c(0, max(tabla_quintil$participacion)*1.2)) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "right",
+        plot.caption  = element_markdown()) +
+  labs(x = "", y = "", fill = "", caption = md("**Fuente**: DNMyE en base a información de la EVyTH"))
+```
+
+```{r}
+no_viaje <- comptur %>%
+  filter(anio == Anio,
+         p006 > 18 & p006 < 66,
+         al_menos_un_viaje == 2,
+         razon_no_viaje != 7) %>%
+  group_by(razon_no_viaje) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  mutate(participacion = turistas/sum(turistas),
+         razon_no_viaje = fct_reorder(str_wrap(as.character(as_factor(razon_no_viaje)), 20), participacion)) %>% 
+    filter(participacion > 0.01)
+
+texto_cat <- no_viaje %>% 
+  filter(participacion == max(participacion)) %>% 
+  pull(razon_no_viaje) %>% 
+  as.character()
+
+texto_val <-  no_viaje %>% 
+  filter(participacion == max(participacion)) %>% 
+  pull(participacion) %>% 
+  lbl_percent()
+```
+
+El principal motivo de no viaje de las personas durante el año `r as.character(Anio)` fue la **`r tolower(texto_cat)`**, el cual representó el `r texto_val`.
+
+```{r comtur8, fig.cap=glue(" Personas de 19 a 65 años que no realizaron viajes en el año por motivo principal. Distribución porcentual. Año {Anio}.")}
+
+ggplot(no_viaje, aes(razon_no_viaje, participacion)) +
+  geom_col(fill = dnmye_colores("cian")) +
+  geom_label(aes(label = paste0(format(round(participacion*100, 1), decimal.mark = ","), "%")), size = 2.5, hjust = -0.1) +
+  scale_y_percent(limits = c(0, max(no_viaje$participacion)*1.2)) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "right",
+        plot.caption  = element_markdown()) +
+  labs(x = "", y = "", fill = "", caption = md("**Fuente**: DNMyE en base a información de la EVyTH"))
+
+```
+
+```{r}
+no_viaje <- comptur %>%
+  filter(anio %in% c(2012:Anio),
+         p006 > 18 & p006 < 66,
+         al_menos_un_viaje == 2,
+         razon_no_viaje != 7) %>%
+  group_by(anio, razon_no_viaje) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  group_by(anio) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  ungroup() %>% 
+  mutate(razon_no_viaje = fct_reorder(str_wrap(as.character(as_factor(razon_no_viaje)), 20), participacion))
+
+tabla_nv <-  no_viaje %>% 
+  select(-turistas) %>% 
+  pivot_wider(names_from = "anio", values_from = "participacion",
+              names_prefix = "porc_") %>% 
+  mutate(pp_var_2020 = (porc_2021 - porc_2020) * 100)
+
+texto_var_cat20 <- tabla_nv %>% 
+  filter(pp_var_2020 == max(pp_var_2020)) %>% 
+  pull(razon_no_viaje) %>% 
+  as.character()
+
+texto_var_val20 <- tabla_nv %>% 
+  filter(pp_var_2020 == max(pp_var_2020)) %>% 
+  pull(pp_var_2020) %>% 
+  lbl_decimal()
+
+# texto_var_cat15 <- tabla_nv %>% 
+#   filter(pp_var_2015 == max(pp_var_2015)) %>% 
+#   pull(razon_no_viaje) %>% 
+#   as.character()
+# 
+# texto_var_val15 <- tabla_nv %>% 
+#   filter(pp_var_2015 == max(pp_var_2015)) %>% 
+#   pull(pp_var_2015) %>% 
+#   lbl_decimal()
+
+```
+
+Respecto del año previo, la razón de no viaje que más creció en proporción fue **`r texto_var_cat20`** (`r texto_var_val20` p.p.).
+
+```{r comtur9}
+
+tabla_nv_gt <- tabla_nv %>% 
+  gt() %>% 
+  cols_label(razon_no_viaje = "",
+             porc_2012 = "2012",
+             porc_2013 = "2013",
+             porc_2014 = "2014",
+             porc_2015 = "2015",
+             porc_2016 = "2016",
+             porc_2017 = "2017",
+             porc_2018 = "2018",
+             porc_2019 = "2019",
+             porc_2020 = "2020",
+             porc_2021 = "2021",
+             pp_var_2020 = glue("Var. i.a. en p.p. \n{Anio}/2020")) %>% 
+  fmt_number(columns = c(pp_var_2020), decimals = 1, dec_mark = ",") %>% 
+  gt_theme_dnmye() %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(caption = md(glue("Personas de 19 a 65 años que no realizaron viajes al año según motivo principal. Distribución porcentual. Años 2012-{Anio}.")))
+
+tabla_nv_gt
+
+```
+
+## Resultados Turismo Interno
+
+En esta sección, se presentan los principales indicadores del turismo interno, entre ellos, la cantidad de argentinos turistas, excursionistas, visitantes que recorrieron el país durante el año `r as.character(Anio)`; también la cantidad de pernoctes y el gasto turístico asociado a dicho movimiento, su distribución temporal y regional. Asimismo se analizan las características de sus viajes: origen de los viajeros, destino, motivo, alojamiento, transporte, organización del viaje, actividades turísticas, así como comparaciones con los resultados de los años anteriores.
+
+**Turismo Interno:**
+
+```{r}
+evyth <- read_file_srv("/srv/DataDNMYE/evyth/base_trabajo/evyth_base_de_trabajo.parquet") %>% 
+  filter(anio %in% c(Anio, 2020, 2019, 2015))
+
+```
+
+```{r}
+
+data_graph1 <- evyth %>% 
+  filter(anio == Anio, tipo_visitante == 1) %>% 
+  group_by(arg_o_ext, trimestre) %>% 
+  summarise(turistas = sum(pondera)) %>% 
+  ungroup() %>% 
+  group_by(trimestre) %>% 
+  mutate(total = sum(turistas)) %>% 
+  ungroup() %>% 
+  mutate(participacion = turistas/total,
+         arg_o_ext = case_when(arg_o_ext == 1 ~ "Argentina",
+                               TRUE ~ "Exterior"),
+         trimestre = paste0(trimestre, "° Trim"))
+
+
+grafico1 <- data_graph1 %>% 
+  ggplot() +
+  geom_col(aes(trimestre, participacion, fill = arg_o_ext), 
+           position="fill", width = 0.8) +
+  geom_label(aes(x = trimestre, y = participacion, group = arg_o_ext,
+                label = paste0(format(round(participacion*100, 1), decimal.mark = ","), "%")),
+            position = position_stack(vjust = 0.9), size = 2.5) +
+  scale_fill_dnmye() +
+  scale_y_percent() +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.caption  = element_markdown()) +
+  labs(x = "", y = "", fill = "", caption = md("**Fuente**: DNMyE en base a información de la EVyTH"))
+
+#VARIABLES PARA TEXTO
+
+trim_max_arg <- data_graph1 %>% filter(arg_o_ext=="Argentina") %>% arrange(participacion) %>% slice(n()) %>% pull (trimestre)
+trim_max_arg_value <- data_graph1 %>% filter(arg_o_ext=="Argentina") %>% arrange(participacion) %>% slice(n()) %>% pull (participacion)
+  
+trim_max_ext <- data_graph1 %>% filter(arg_o_ext=="Exterior") %>% arrange(participacion) %>% slice(n()) %>% pull (trimestre)
+trim_max_ext_value <- data_graph1 %>% filter(arg_o_ext=="Exterior") %>% arrange(participacion) %>% slice(n()) %>% pull (participacion)
+
+``` 
+Los resultados del año `r as.character(Anio)` demostraron que los turistas viajaron más por Argentina durante los cuatro trimestres, en comparación con otros años, sin embargo lo hicieron en mayor proporción durante el **`r trim_max_arg`** (`r trim_max_arg_value %>% lbl_percent(decimales=0)`), mientras que al exterior viajaron en mayor proporción en el **`r trim_max_ext`** (`r trim_max_ext_value %>% lbl_percent()`).
+
+```{r evyth1, fig.cap=glue("Turistas según destino principal por trimestre. Distribución porcentual. Año {Anio}.")}
+grafico1
+```
+
+```{r}
+evol_graph <- read_file_srv("/srv/DataDNMYE/evyth/base_trabajo/evyth_base_de_trabajo.parquet") %>% 
+  filter(arg_o_ext == 1) %>% 
+  group_by(anio,tipo_visitante) %>% 
+  summarise(turistas = sum(pondera)) %>% 
+  ungroup()
+```
+
+A continuación se visualiza la serie anual de turistas que viajaron por Argentina, la cual muestra el impacto negativo que tuvo la pandemia en la cantidad de turistas, seguido de una fuerte recuperación: hubo una caída interanual del 54% en el año 2020, respecto del 2019, seguida de un aumento del 45,7% en el año 2021, en comparación con el 2020.
+
+```{r evyth12, fig.cap=glue("Evolución de turistas que viajaron por Argentina. En millones. Años 2012-{Anio}")}
+
+evol_graph %>% 
+  filter(anio %in% 2012:Anio, tipo_visitante == 1) %>% 
+  mutate(turistas = turistas/1e6) %>% 
+  #crear_etiqueta("tipo_visitante") %>% 
+  ggplot(aes(anio, turistas, group = tipo_visitante)) +
+  geom_line(size = 0.8, show.legend = F,color = dnmye_colores("purpura")) +
+  geom_point(size = 2, show.legend = F,color = dnmye_colores("purpura")) +
+  geom_text(aes(label = lbl_decimal(turistas,1)), size = 2.5, vjust = -0.8) +
+  scale_x_continuous(breaks = c(2012:Anio)) +
+  scale_y_continuous(limits = c(0, max(evol_graph$turistas, na.rm = T)*1.01/1e6)) +
+  labs(x = "", y = "millones de turistas") +
+  theme_minimal() 
+```
+
+
+```{r}
+
+evyth <- evyth %>% 
+  filter(arg_o_ext == 1)
+
+data_tabla1 <- evyth %>%
+  crear_etiqueta("tipo_visitante") %>% 
+  group_by(anio, tipo_visitante) %>% 
+  summarise(Total = sum(pondera, na.rm = T),
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Total,
+            Gasto_prom = Gasto/Total,
+            Gasto_diario = Gasto/Pernoctes) %>%
+  ungroup() %>% 
+  mutate(Total = Total/1000,
+         Pernoctes = Pernoctes/1000,
+         Gasto = Gasto/1000000) %>% 
+  pivot_longer(cols = c("Total","Gasto","Pernoctes","Estadia_prom","Gasto_prom","Gasto_diario"), 
+               names_to = "categoria", values_to = "cantidad") %>% 
+  pivot_wider(names_from = "anio", values_from = "cantidad") %>% 
+   filter(!(tipo_visitante == "Excursionista" & 
+              categoria %in% c("Pernoctes","Estadia_prom","Gasto_diario")))
+
+total <- data_tabla1 %>% 
+  group_by(categoria) %>% 
+  summarise(`2015` = sum(`2015`),
+            `2019` = sum(`2019`),
+            `2020` = sum(`2020`),
+            `2021` = sum(`2021`)) %>% 
+  filter(categoria %in% c("Total","Gasto")) %>% 
+  mutate(tipo_visitante = "Visitantes")
+
+tabla1 <- data_tabla1 %>% 
+  rbind(total) %>% 
+  filter(!(tipo_visitante %in% c("Excursionista","Turista") &
+             categoria %in% c("Gasto")))
+
+tabla1 <- tabla1[c(3,1,9,5,4,8,6,2,7),] 
+
+tabla1 <- tabla1 %>% 
+  mutate(unidad = case_when(
+    categoria == "Total" ~ "miles",
+    categoria == "Estadia_prom" ~ "noches",
+    categoria == "Pernoctes" ~ "miles de noches",
+    categoria == "Gasto" ~ "millones de $",
+    TRUE ~ "$"
+  ),
+         categoria = case_when(
+    tipo_visitante == "Turista" & categoria == "Total" ~ "Turistas",
+    tipo_visitante == "Turista" & categoria == "Estadia_prom" ~ "Estadía promedio",
+    tipo_visitante == "Turista" & categoria == "Gasto_prom" ~ "Gasto promedio por turista",
+    tipo_visitante == "Turista" & categoria == "Gasto_diario" ~ "Gasto diario promedio por turista", 
+    tipo_visitante == "Excursionista" & categoria == "Total" ~ "Excursionistas",
+    tipo_visitante == "Excursionista" & categoria == "Gasto_prom" ~ "Gasto promedio por excursionista",
+    tipo_visitante == "Visitantes" & categoria == "Total" ~ "Visitantes (turistas + excursionistas)",
+    tipo_visitante == "Visitantes" & categoria == "Gasto" ~ "Gasto visitantes",
+    TRUE ~ categoria
+  ),
+  var_ia = (`2021`/`2020`)-1,
+  var_ia19 = (`2021`/`2019`)-1)
+ 
+tabla1_def <- tabla1 %>% 
+  select(-tipo_visitante) %>% 
+  gt() %>% 
+   cols_label(
+    categoria = "",
+    unidad = "",
+    var_ia = "Var. i.a. % 2020",
+    var_ia19 = "Var. i.a. % 2019"
+  ) %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  fmt_number(columns = c(`2015`:`2021`), rows = categoria == "Estadía promedio",
+             decimals = 1, dec_mark = ",") %>% 
+  gt_theme_dnmye() %>% 
+  tab_caption(caption = md(glue("Visitantes, estadía promedio, pernoctes y gasto con destino en Argentina por año. Años 2015/2019/2020/{Anio}"))) 
+
+#VARIABLES PARA TEXTO
+
+# var_ia_min <- tabla1 %>% arrange(var_ia) %>% slice(1) %>% pull (categoria)
+# var_ia_min_value <- tabla1 %>% arrange(var_ia) %>% slice(1) %>% pull (var_ia) 
+#   
+# var_ia_max <- tabla1 %>% arrange(-var_ia) %>% slice(1) %>% pull (categoria)
+# var_ia_max_value <- tabla1 %>% arrange(-var_ia) %>% slice(1) %>% pull (var_ia)
+# 
+# var_ia_max_2 <- tabla1 %>% arrange(-var_ia) %>% slice(2) %>% pull (categoria)
+# var_ia_max_value_2 <- tabla1 %>% arrange(-var_ia) %>% slice(2) %>% pull (var_ia)
+
+var_ia_gasto_vis_value <- tabla1 %>% filter(categoria == "Gasto visitantes") %>% pull(var_ia)
+var_ia_gasto_tur_value <- tabla1 %>% filter(categoria == "Gasto promedio por turista") %>% pull(var_ia)
+var_ia_estadia_value <- tabla1 %>% filter(categoria == "Estadía promedio") %>% pull(var_ia)
+
+var_ia_gasto_vis_value19 <- tabla1 %>% filter(categoria == "Gasto visitantes") %>% pull(var_ia19)
+var_ia_gasto_tur_value19 <- tabla1 %>% filter(categoria == "Gasto promedio por turista") %>% pull(var_ia19)
+var_ia_estadia_value19 <- tabla1 %>% filter(categoria == "Estadía promedio") %>% pull(var_ia19)
+
+#En el año `r as.character(Anio)`, se encontró que **`r var_ia_max`** fue la variable con mayor variación interanual (`r var_ia_max_value %>%  lbl_percent()`), seguida de `r var_ia_max_2` (`r var_ia_max_value_2 %>% lbl_percent()`), es decir que ambas superaron el doble del valor obtenido en 2020. Mientras que la variable `r var_ia_min` disminuyó un `r (-1*var_ia_min_value) %>% lbl_percent (decimales=0)`.
+```
+
+
+```{r}
+
+data_var <- evyth %>% 
+  filter(tipo_visitante == 1, anio >= 2020) 
+
+evyth <- evyth %>% 
+  filter(tipo_visitante == 1, anio == Anio) 
+
+data_destino <- evyth %>% 
+  #filter(tipo_visitante == 1, anio == Anio) %>% 
+  crear_etiqueta("region_destino") %>% 
+  group_by(orig_dest = region_destino) %>% 
+  summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes) %>% 
+  ungroup() %>% 
+  mutate(Turistas = Turistas/sum(Turistas),
+         Pernoctes = Pernoctes/sum(Pernoctes),
+         Gasto = Gasto/sum(Gasto),
+          region = "Región de destino")
+
+data_origen <- evyth %>% 
+  #filter(tipo_visitante == 1, anio == Anio) %>% 
+  crear_etiqueta("region_origen") %>% 
+  group_by(orig_dest = region_origen) %>% 
+  summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes) %>% 
+  ungroup() %>% 
+  mutate(Turistas = Turistas/sum(Turistas),
+         Pernoctes = Pernoctes/sum(Pernoctes),
+         Gasto = Gasto/sum(Gasto),
+         region = "Región de origen")
+
+total <- evyth %>% 
+  #filter(tipo_visitante == 1, anio == Anio) %>% 
+  mutate(region = "Total",
+           orig_dest = "") %>% 
+  group_by(region, orig_dest) %>% 
+  summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+  mutate(Gasto = Gasto/1000000,
+         Turistas = Turistas/1000,
+         Pernoctes = Pernoctes/1000)
+
+
+tabla2 <- rbind(total, data_destino, data_origen) %>% 
+  mutate(orig_dest = str_replace(orig_dest, "Provincia de Buenos Aires", "PBA"))
+
+tabla2_def <- tabla2 %>% 
+  gt(groupname_col = "region") %>% 
+   cols_label(
+     orig_dest = "",
+     region = "",
+     Turistas = md("**Turistas <br>(en miles)**"),
+     Pernoctes = md("**Pernoctes <br>(en miles)**"),
+     Estadia_prom = md("**Estadía promedio**"), 
+     Gasto = md("**Gasto <br>(en millones de $)**"), 
+     Gasto_prom = md("**Gasto promedio <br>(en $)**"), 
+     Gasto_diario = md("**Gasto promedio diario <br>(en $)**")
+  ) %>%
+  tab_options(row_group.font.weight = "bold") %>% 
+  gt_theme_dnmye() %>%
+  fmt_number(columns = c(5,7,8), rows = c(2:17), decimals = 1,  dec_mark = ",", sep_mark = ".") %>%
+   fmt_number(columns = c(3:8), rows = 1, decimals = 1,  dec_mark = ",", sep_mark = ".") %>%
+  fmt_percent(columns = c(3,4,6), rows = c(2:17), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(caption = md(glue("Turistas con destino principal en Argentina, pernoctes, estadía promedio y gasto según región de residencia y de destino, distribución porcentual. Año {Anio}")))
+  
+#VARIABLES PARA TEXTO
+
+turistas <- total %>% pull(Turistas)*1000/1000000
+pernoctes <- total %>% pull(Pernoctes)*1000/1000000
+estadia <- total %>% pull(Estadia_prom)
+gasto <- total %>% pull(Gasto)
+gasto_prom <- total %>% pull(Gasto_prom)
+gasto_prom_diario <- total %>% pull(Gasto_diario)
+  
+```
+
+En el año `r as.character(Anio)` se contabilizó un total de `r turistas %>% lbl_decimal()` millones de turistas con destino principal en Argentina. A su vez, se estimaron `r pernoctes %>% lbl_decimal()` millones de pernoctes y la estadía promedio se ubicó en `r estadia %>% lbl_decimal()` días. Dichos turistas gastaron un total de `r gasto %>% lbl_money(decimales=1)` millones, es decir un promedio de `r gasto_prom %>% lbl_money(decimales=1)` por turista y de `r gasto_prom_diario %>% lbl_money(decimales=1)` por día.  
+
+El **gasto de los visitantes** en el año `r as.character(Anio)` creció un `r var_ia_gasto_vis_value %>% lbl_percent()` respecto del año previo y un `r var_ia_gasto_vis_value19 %>% lbl_percent()` en relación al 2019. En cuanto al **gasto promedio por turista**, este presentó incrementos del `r var_ia_gasto_tur_value %>% lbl_percent()` y `r var_ia_gasto_tur_value19 %>% lbl_percent()` respecto del 2020 y 2019, respectivamente. Por otra parte, la **estadía promedio** disminuyó un `r str_remove(var_ia_estadia_value %>% lbl_percent(), "-")` en comparación al `r as.character(as.numeric(Anio)-1)` y un `r str_remove(var_ia_estadia_value19 %>% lbl_percent(), "-")` en relación al 2019.
+
+
+```{r evyth2}
+
+tabla1_def 
+
+```
+
+**REGIÓN DE ORIGEN Y REGIÓN DE DESTINO:**
+
+En la tabla a continuación podrá encontrarse la distribución porcentual de los resultados de las variables según las regiones de origen y de destino de los turistas. 
+
+```{r evyth3}
+
+tabla2_def
+
+```
+
+
+```{r evyth4}
+
+data_matriz <- evyth %>% 
+  #filter(tipo_visitante == 1, anio == Anio) %>% 
+  crear_etiqueta(c("region_destino","region_origen")) %>% 
+  group_by(region_origen, region_destino) %>% 
+  summarise(Turistas = sum(pondera)) %>% 
+  ungroup() %>% 
+  group_by(region_origen) %>% 
+  mutate(total_orig = sum(Turistas)) %>% 
+  ungroup() %>% 
+  mutate(participacion = Turistas/total_orig,
+         across(c(region_origen, region_destino), 
+                ~ str_replace(., "Provincia de Buenos Aires", "PBA"))) %>% 
+  select(-c(Turistas, total_orig)) %>% 
+  pivot_wider(names_from = "region_origen", values_from = "participacion")
+
+
+total <- data_destino %>% 
+  select(region_destino = orig_dest, Total = Turistas) %>% 
+  mutate(region_destino = str_replace(region_destino, "Provincia de Buenos Aires", "PBA"))
+
+tabla3 <- total %>% 
+  left_join(data_matriz)
+
+tabla3 <- tabla3 %>% 
+   gt(groupname_col = "región") %>% 
+   cols_label(
+     region_destino = "Región de destino"
+  ) %>%
+  gt_theme_dnmye() %>% 
+  fmt_percent(columns = c(2:10), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(md(glue("Turistas con destino principal en Argentina por región de residencia según región de destino del viaje. Distribución porcentual. Año {Anio}.")))
+
+tabla3
+```
+
+**DISTRIBUCIÓN TEMPORAL DE LOS VIAJES:**
+
+```{r evyth51}
+evol_dest <- read_file_srv("/srv/DataDNMYE/evyth/base_trabajo/evyth_base_de_trabajo.parquet") %>% 
+  filter(arg_o_ext == 1, tipo_visitante == 1) %>% 
+  group_by(anio, region_destino) %>% 
+  summarise(Turistas = sum(pondera)) %>% 
+  ungroup() %>% 
+   crear_etiqueta("region_destino", drop_vars = T) %>% 
+  mutate(region_destino = str_replace(region_destino, "Provincia de Buenos Aires", "PBA"),
+      categoria = "Región de destino") %>% 
+  rename(region = region_destino)
+
+evol_orig <- read_file_srv("/srv/DataDNMYE/evyth/base_trabajo/evyth_base_de_trabajo.parquet") %>% 
+  filter(arg_o_ext == 1, tipo_visitante == 1) %>% 
+  group_by(anio, region_origen) %>% 
+  summarise(Turistas = sum(pondera)) %>% 
+  ungroup() %>% 
+    crear_etiqueta("region_origen", drop_vars = T) %>% 
+  mutate(region_origen = str_replace(region_origen, "Provincia de Buenos Aires", "PBA"),
+          categoria = "Región de origen") %>% 
+  rename(region = region_origen)
+
+
+data_reg <- rbind(evol_dest, evol_orig)
+    
+```
+
+La distribución anual de viajes en Argentina por región de origen y destino mostró que el interior de la **Provincia de Buenos Aires** (excluyendo Gran Buenos Aires) es la que recibió la mayor cantidad de turistas a lo largo de toda la serie, seguida del **Litoral**.
+
+Por su parte, el **Gran Buenos Aires (GBA)** fue la principal región emisiva en términos de turistas internos a lo largo de todo el período 2012-`r as.character(Anio)`, seguida de la **Ciudad de Buenos Aires**.
+
+```{r evyth52, fig.cap=glue("Turistas con destino principal en Argentina por región de origen y destino del viaje. Años 2012-{Anio}.")}
+
+data_reg %>% 
+  filter(anio %in% 2012:Anio) %>% 
+  mutate(Turistas = Turistas/1e6) %>% 
+  ggplot(aes(anio, Turistas, color = region)) +
+  geom_line() +
+  geom_point(size = 1.5) +
+  scale_color_dnmye() +
+  scale_x_continuous(breaks = 2012:Anio) +
+  labs(color = "", x = "", y = "millones de turistas") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~categoria, nrow = 2)
+```
+
+```{r}
+
+data_graph2 <- evyth %>%
+  crear_etiqueta("region_destino") %>% 
+  mutate(region_destino = str_replace(region_destino, "Provincia de Buenos Aires", "PBA")) %>% 
+  group_by(region_destino, trimestre) %>% 
+  summarise(Turistas = sum(pondera)) %>% 
+  ungroup() %>% 
+  group_by(region_destino) %>% 
+  mutate(total = sum(Turistas)) %>% 
+  ungroup() %>% 
+  mutate(participacion = Turistas/total)
+
+grafico2 <- data_graph2 %>% 
+  mutate(trimestre = paste0(trimestre, "° Trim"),
+         trimestre = fct_reorder(trimestre, desc(trimestre))) %>% 
+  ggplot() +
+  geom_col(aes(region_destino, participacion, fill = trimestre), 
+           position="fill", width = 0.8) +
+  geom_text(aes(x = region_destino, y = participacion, group = trimestre,
+                label = paste0(format(round(participacion*100, 1), decimal.mark = ","), "%")),
+            position = position_stack(vjust = 0.5), size = 2.5) +
+  scale_fill_dnmye(breaks=c("1° Trim","2° Trim","3° Trim","4° Trim")) +
+  scale_y_percent() +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+           plot.caption  = element_markdown()) +
+  labs(x = "", y = "", fill = "", caption = md("**Fuente**: DNMyE en base a información de la EVyTH"))
+
+#VARIABLES PARA TEXTO
+
+trim1_max_region1 <- data_graph2 %>% filter(trimestre==1) %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+trim1_max_region1_value <- data_graph2 %>% filter(trimestre==1) %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+trim1_max_region2 <- data_graph2 %>% filter(trimestre==1) %>% arrange(-participacion) %>% slice(2) %>% pull(region_destino)
+trim1_max_region2_value <- data_graph2 %>% filter(trimestre==1) %>% arrange(-participacion) %>% slice(2) %>% pull(participacion)
+
+trim2_max_region1 <- data_graph2 %>% filter(trimestre==2) %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+trim2_max_region1_value <- data_graph2 %>% filter(trimestre==2) %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+trim3_max_region1 <- data_graph2 %>% filter(trimestre==3) %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+trim3_max_region1_value <- data_graph2 %>% filter(trimestre==3) %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+trim4_max_region1 <- data_graph2 %>% filter(trimestre==4) %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+trim4_max_region1_value <- data_graph2 %>% filter(trimestre==4) %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+trim4_max_region2 <- data_graph2 %>% filter(trimestre==4) %>% arrange(-participacion) %>% slice(2) %>% pull(region_destino)
+trim4_max_region2_value <- data_graph2 %>% filter(trimestre==4) %>% arrange(-participacion) %>% slice(2) %>% pull(participacion)
+
+trim4_max_region3 <- data_graph2 %>% filter(trimestre==4) %>% arrange(-participacion) %>% slice(3) %>% pull(region_destino)
+trim4_max_region3_value <- data_graph2 %>% filter(trimestre==4) %>% arrange(-participacion) %>% slice(3) %>% pull(participacion)
+
+```
+
+En las regiones de **`r trim1_max_region1`** y **`r trim1_max_region2`** los turistas viajaron en mayor proporción durante el 1° trimestre (`r trim1_max_region1_value %>% lbl_percent()` y `r trim1_max_region2_value %>% lbl_percent()` respectivamente), en la región de **`r trim2_max_region1`** durante el 2° trimestre (`r trim2_max_region1_value %>% lbl_percent()`), en **`r trim3_max_region1`** durante el 3° trimestre (`r trim3_max_region1_value %>% lbl_percent()`) y en las regiones de **`r trim4_max_region1`**, **`r trim4_max_region2`** y **`r trim4_max_region3`** durante el 4° trimestre (`r trim4_max_region1_value %>% lbl_percent()`, `r trim4_max_region2_value %>% lbl_percent()` y `r trim4_max_region3_value %>% lbl_percent()` respectivamente). Por último, en el caso de la región de **Litoral** la mayor proporción se encontró en el 1° y 4° trimestre (28,6%).
+
+
+```{r evyth5, fig.cap=glue("Turistas con destino principal en Argentina por región de destino según trimestre. Distribución porcentual. Año {Anio}.")}
+
+grafico2
+
+```
+
+
+```{r}
+
+variaciones <- data_var %>% 
+  group_by(anio, trimestre) %>%  
+  summarise(total = sum(pondera)) %>%
+  ungroup() %>% 
+  group_by(trimestre) %>% 
+  mutate(var_turistas = (total/lag(total,1))-1) %>% 
+  filter(anio == Anio) %>% 
+  select(-anio) %>% 
+  ungroup()
+
+total <- data_var %>% 
+  group_by(anio, region_destino) %>% 
+  summarise(Turistas = sum(pondera)) %>%
+  ungroup() %>% 
+  crear_etiqueta("region_destino") %>% 
+  mutate(region_destino = str_replace(region_destino, "Provincia de Buenos Aires", "PBA")) %>% 
+  group_by(anio) %>% 
+  mutate(total = sum(Turistas)) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = "region_destino", values_from = "Turistas") %>% 
+  mutate(var_turistas = (total/lag(total,1))-1,
+         trimestre = "Total") %>% 
+  filter(anio == Anio) %>% 
+  select(-anio) 
+
+data_tabla5 <- evyth %>%
+  crear_etiqueta("region_destino") %>% 
+  mutate(region_destino = str_replace(region_destino, "Provincia de Buenos Aires", "PBA")) %>% 
+  group_by(trimestre, region_destino) %>% 
+  summarise(Turistas = sum(pondera)) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = "region_destino", values_from = "Turistas") %>%
+  left_join(variaciones) %>% 
+  mutate(trimestre = paste0(trimestre, "° Trim")) 
+
+tabla5 <- rbind(total, data_tabla5) %>% 
+  relocate(trimestre, total, var_turistas)
+
+tabla5 <- tabla5 %>% 
+   gt() %>% 
+   cols_label(
+     trimestre = "",
+     total = "Total",
+     var_turistas = "Var i.a. %"
+  ) %>%
+  gt_theme_dnmye(var_total = trimestre) %>% 
+  fmt_number(columns = c(2,4:11), decimals = 0, dec_mark = ",", sep_mark = ".") %>% 
+  fmt_percent(columns = 3, decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  gt_theme_dnmye() %>% 
+  tab_caption(caption = md(glue("Turistas con destino principal en Argentina por región de destino del viaje, según trimestre. Año {Anio}.")))
+
+#VARIABLES PARA TEXTO
+
+var_trim_min <- variaciones %>% arrange(var_turistas) %>% slice(1) %>% pull (trimestre) %>% as.numeric()
+var_value_min <- variaciones %>% arrange(var_turistas) %>% slice(1) %>% pull (var_turistas)
+  
+var_trim_max <- variaciones %>% arrange(-var_turistas) %>% slice(1) %>% pull (trimestre) %>% as.numeric()
+var_value_max <- variaciones %>% arrange(-var_turistas) %>% slice(1) %>% pull (var_turistas)
+```
+
+Por otra parte, el trimestre que más creció en cantidad de turistas, respecto al año anterior, fue el `r var_trim_max`° (`r var_value_max %>% lbl_percent ()`), sin embargo en el `r var_trim_min`° se verificó `r ifelse(var_value_min<0, "una caída", "un aumento")` del `r ifelse(var_value_min<0, ((-1)*var_value_min) %>% lbl_percent(), var_value_min %>% lbl_percent())`. Estos resultados podrían verse influenciados por las restricciones de viaje de la pandemia Covid-19.   
+
+```{r evyth6, fig.cap=glue()}
+
+tabla5
+
+```
+
+
+**MOTIVO PRINCIPAL DE VIAJE:**
+
+
+```{r}
+
+data_tabla6 <- evyth %>% 
+  crear_etiqueta("px10_1") %>% 
+   mutate(px10_1=ifelse(px10_1=="Esparcimiento, ocio, recreacion","Esparcimiento, ocio, recreación",px10_1)) %>%
+  mutate(
+         px10_1 = case_when(!px10_1 %in% 
+                              c("Esparcimiento, ocio, recreación",
+                                "Visitas a familiares o amigos", 
+                                "Trabajo, negocios, motivos profesionales") ~ "Resto",
+                            TRUE ~ px10_1),
+         px10_1 = factor(px10_1, levels = c("Esparcimiento, ocio, recreación",
+                                "Visitas a familiares o amigos", 
+                                "Trabajo, negocios, motivos profesionales", 
+                                "Resto"))) %>%  
+  group_by(px10_1) %>% 
+ summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+    mutate(Turistas = Turistas/sum(Turistas),
+         Pernoctes = Pernoctes/sum(Pernoctes),
+         Gasto = Gasto/sum(Gasto))
+
+
+total <- evyth %>% 
+  #filter(tipo_visitante == 1, anio == Anio) %>% 
+  mutate(px10_1 = "Total") %>% 
+  group_by(px10_1) %>% 
+  summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+  mutate(Turistas = Turistas/1000,
+         Pernoctes = Pernoctes/1000,
+         Gasto = Gasto/1000000)
+
+tabla6 <- rbind(total, data_tabla6)
+
+tabla6_def <- tabla6 %>% 
+   gt() %>% 
+   cols_label(
+     px10_1 = "",
+     Turistas = md("**Turistas <br>(en miles)**"),
+     Pernoctes = md("**Pernoctes <br>(en miles)**"),
+     Estadia_prom = md("**Estadía promedio**"), 
+     Gasto = md("**Gasto <br>(en millones de $)**"), 
+     Gasto_prom = md("**Gasto promedio <br>(en $)**"), 
+     Gasto_diario = md("**Gasto promedio diario <br>(en $)**")
+  ) %>%
+  gt_theme_dnmye(var_total = px10_1) %>% 
+  fmt_number(columns = c(4,6,7), rows = c(2:5), decimals = 1,  dec_mark = ",", sep_mark = ".") %>% 
+   fmt_number(columns = c(2:7), rows = 1, decimals = 1,  dec_mark = ",", sep_mark = ".") %>% 
+  fmt_percent(columns = c(2,3,5), rows = c(2:5), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  cols_align(
+    align = "center",
+    columns = c(Turistas, Pernoctes, Estadia_prom, 
+                Gasto, Gasto_prom, Gasto_diario))  %>% 
+  opt_table_font(
+    font = "Encode Sans"
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(caption = md(glue("Turistas, pernoctes, estadía promedio y gasto en Argentina por motivo principal del viaje. Año {Anio}.")))
+
+
+```
+
+```{r}
+
+data_graph3 <- evyth %>% 
+  crear_etiqueta(c("region_destino","px10_1")) %>% 
+  mutate(px10_1=ifelse(px10_1=="Esparcimiento, ocio, recreacion","Esparcimiento, ocio, recreación",px10_1)) %>% 
+  mutate(region_destino = str_replace(region_destino, 
+                                      "Provincia de Buenos Aires", "PBA"),
+         px10_1 = case_when(!px10_1 %in% 
+                              c("Esparcimiento, ocio, recreación",
+                                "Visitas a familiares o amigos", 
+                                "Trabajo, negocios, motivos profesionales") ~ "Resto",
+                            TRUE ~ px10_1),
+         px10_1 = factor(px10_1, levels = c("Esparcimiento, ocio, recreación",
+                                "Visitas a familiares o amigos", 
+                                "Trabajo, negocios, motivos profesionales", 
+                                "Resto"))) %>%  
+  group_by(region_destino, px10_1) %>% 
+  summarise(Turistas = sum(pondera)) %>% 
+  ungroup() %>% 
+  group_by(region_destino) %>% 
+  mutate(total = sum(Turistas)) %>% 
+  ungroup() %>% 
+  mutate(participacion = Turistas/total,
+         px10_1=fct_reorder(px10_1,participacion))
+
+grafico3 <- data_graph3 %>% 
+  ggplot() +
+  geom_col(aes(region_destino, participacion, fill = px10_1), 
+           position="fill", width = 0.8) +
+  ggrepel::geom_text_repel(aes(x = region_destino, y = participacion, group = px10_1,
+                label = paste0(format(round(participacion*100, 1), decimal.mark = ","), "%")), direction = "x", min.segment.length = 5, max.overlaps = 100,
+                #force_pull = 0.2, 
+                box.padding = 0.1,
+            position = position_stack(vjust = 0.5), 
+            size = 2.5) +
+  scale_fill_dnmye(breaks= c("Esparcimiento, ocio, recreación",
+                             "Visitas a familiares o amigos",
+                             "Resto",
+                             "Trabajo, negocios, motivos profesionales"
+                             )) +
+  scale_y_percent(expand = c(0,0.15)) +
+  coord_flip() +
+  theme_minimal() +
+  guides(fill=guide_legend(nrow=2,byrow=TRUE))+
+  theme(legend.position = "bottom",
+        plot.caption = element_markdown()
+        ) +
+  labs(x = "", y = "", fill = "", caption = md("**Fuente**: DNMyE en base a información de la EVyTH"))
+
+#VARIABLES PARA TEXTO
+
+motivo1 <- data_tabla6 %>%  arrange(-Turistas) %>% slice(1) %>% pull(px10_1) %>% as.character()
+motivo1_turistas <- data_tabla6 %>%  arrange(-Turistas) %>% slice(1) %>% pull(Turistas)
+motivo1_gasto <- data_tabla6 %>%  arrange(-Turistas) %>% slice(1) %>% pull(Gasto)
+motivo1_pernoctes <- data_tabla6 %>%  arrange(-Turistas) %>% slice(1) %>% pull(Pernoctes)
+
+motivo2 <- data_tabla6 %>%  arrange(-Turistas) %>% slice(2) %>% pull(px10_1) %>% as.character()
+motivo2_turistas <- data_tabla6 %>%  arrange(-Turistas) %>% slice(2) %>% pull(Turistas)
+
+motivo3 <- data_tabla6 %>%  arrange(-Turistas) %>% slice(3) %>% pull(px10_1) %>% as.character()
+motivo3_turistas <- data_tabla6 %>%  arrange(-Turistas) %>% slice(3) %>% pull(Turistas)
+
+motivo4 <- data_tabla6 %>%  arrange(-Turistas) %>% slice(4) %>% pull(px10_1) %>% as.character()
+motivo4_turistas <- data_tabla6 %>%  arrange(-Turistas) %>% slice(4) %>% pull(Turistas)
+
+
+region_max_ocio <- data_graph3 %>% filter(px10_1=="Esparcimiento, ocio, recreación") %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+
+region_max_ocio_value <- data_graph3 %>% filter(px10_1=="Esparcimiento, ocio, recreación") %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+region_max_visitas <- data_graph3 %>% filter(px10_1=="Visitas a familiares o amigos") %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+
+region_max_visitas_value <- data_graph3 %>% filter(px10_1=="Visitas a familiares o amigos") %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+```
+
+El principal motivo de viaje de los turistas en `r as.character(Anio)` fue el **`r motivo1`** con el `r motivo1_turistas %>% lbl_percent(decimales=0)` de los turistas, al mismo tiempo este motivo ocupó el `r motivo1_gasto %>% lbl_percent` del gasto y el `r motivo1_pernoctes %>% lbl_percent` de las pernoctaciones. En segundo lugar se encontró **`r motivo2`** con el `r motivo2_turistas %>% lbl_percent` de los turistas, luego **`r motivo3`** (`r motivo3_turistas %>% lbl_percent`) y por último **`r motivo4`** (`r motivo4_turistas %>% lbl_percent`). 
+
+```{r evyth8}
+
+tabla6_def
+```
+
+**`r motivo1`** también se posicionó en primer lugar a nivel regional. Por ejemplo, en la región `r region_max_ocio` ocupó el `r region_max_ocio_value %>% lbl_percent()`. En segundo lugar, **Visitas a familiares o amigos** también influyó significativamente. Por ejemplo, en `r region_max_visitas` ocupó el `r region_max_visitas_value %>% lbl_percent()` de los turistas.
+
+```{r evyth7, fig.cap=glue("Turistas con destino principal en Argentina por región de destino según motivo del viaje. Distribución porcentual. Año {Anio}.")}
+
+grafico3
+```
+
+
+
+**TIPO DE ALOJAMIENTO UTILIZADO:**
+
+
+```{r}
+
+data_tabla7 <- evyth %>% 
+  crear_etiqueta("px08_agrup") %>% 
+  group_by(px08_agrup) %>% 
+ summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+    mutate(Turistas = Turistas/sum(Turistas),
+         Pernoctes = Pernoctes/sum(Pernoctes),
+         Gasto = Gasto/sum(Gasto))
+
+
+total <- evyth %>% 
+  #filter(tipo_visitante == 1, anio == Anio) %>% 
+  mutate(px08_agrup = "Total") %>% 
+  group_by(px08_agrup) %>% 
+  summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+  mutate(Turistas = Turistas/1000,
+         Pernoctes = Pernoctes/1000,
+         Gasto = Gasto/1000000)
+
+tabla7 <- rbind(total, data_tabla7)
+
+tabla7 <- tabla7 %>% 
+  arrange(desc(Turistas)) %>% 
+   gt() %>% 
+   cols_label(
+     px08_agrup = "",
+     Turistas = md("**Turistas <br>(en miles)**"),
+     Pernoctes = md("**Pernoctes <br>(en miles)**"),
+     Estadia_prom = md("**Estadía promedio**"), 
+     Gasto = md("**Gasto <br>(en millones de $)**"), 
+     Gasto_prom = md("**Gasto promedio <br>(en $)**"), 
+     Gasto_diario = md("**Gasto promedio diario <br>(en $)**")
+  ) %>%
+  gt_theme_dnmye(var_total = px08_agrup) %>% 
+  fmt_number(columns = c(4,6,7), rows = c(2:8), decimals = 1,  dec_mark = ",", sep_mark = ".") %>% 
+   fmt_number(columns = c(2:7), rows = 1, decimals = 1,  dec_mark = ",", sep_mark = ".") %>% 
+  fmt_percent(columns = c(2,3,5), rows = c(2:8), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  cols_align(
+    align = "center",
+    columns = c(Turistas, Pernoctes, Estadia_prom, 
+                Gasto, Gasto_prom, Gasto_diario))  %>% 
+  opt_table_font(
+    font = "Encode Sans"
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(caption=md(glue("Turistas, pernoctes, estadía promedio y gasto en Argentina por tipo de alojamiento. Total y distribución porcentual según categorías. Año {Anio}")))
+
+#VARIABLES PARA TEXTO
+
+alojamiento1 <- data_tabla7 %>% arrange(-Turistas) %>% slice(1) %>% pull(px08_agrup)
+alojamiento1_value <- data_tabla7 %>% arrange(-Turistas) %>% slice(1) %>% pull(Turistas) 
+alojamiento1_gasto <- data_tabla7 %>% arrange(-Turistas) %>% slice(1) %>% pull(Gasto)
+alojamiento1_pernoctes <- data_tabla7 %>% arrange(-Turistas) %>% slice(1) %>% pull(Pernoctes)
+
+alojamiento2 <- data_tabla7 %>% arrange(-Turistas) %>% slice(2) %>% pull(px08_agrup)
+alojamiento2_value <- data_tabla7 %>% arrange(-Turistas) %>% slice(2) %>% pull(Turistas) 
+
+alojamiento3 <- data_tabla7 %>% arrange(-Turistas) %>% slice(3) %>% pull(px08_agrup)
+alojamiento3_value <- data_tabla7 %>% arrange(-Turistas) %>% slice(3) %>% pull(Turistas) 
+```
+El `r alojamiento1_value %>% lbl_percent(decimales=0)` de los turistas que se desplazaron por el país en `r as.character(Anio)` utilizó **`r alojamiento1`**. El uso de **`r alojamiento2`** fue la elección del `r alojamiento2_value %>% lbl_percent`, mientras que el `r alojamiento3_value %>% lbl_percent` lo hizo en **`r alojamiento3`**. Por su parte, la categoría **`r alojamiento1`** influyó en el `r alojamiento1_gasto %>% lbl_percent()` del gasto y en el `r alojamiento1_pernoctes %>% lbl_percent()` de los pernoctes totales. 
+
+```{r evyth10, fig.cap=glue()}
+tabla7
+```
+
+```{r}
+
+data_graph4 <- evyth %>% 
+  crear_etiqueta(c("region_destino","px08_agrup")) %>% 
+  mutate(region_destino = str_replace(region_destino, 
+                                      "Provincia de Buenos Aires", "PBA")) %>%  
+  group_by(region_destino, px08_agrup) %>% 
+  summarise(Turistas = sum(pondera)) %>% 
+  ungroup() %>% 
+  group_by(region_destino) %>% 
+  mutate(total = sum(Turistas)) %>% 
+  ungroup() %>% 
+  mutate(participacion = Turistas/total, 
+         px08_agrup=fct_reorder(px08_agrup,participacion))
+
+grafico4 <- data_graph4 %>% 
+  ggplot() +
+  geom_col(aes(region_destino, participacion, fill = px08_agrup), 
+           position="fill", width = 0.8) +
+  ggrepel::geom_text_repel(aes(x = region_destino, y = participacion, group = px08_agrup,
+                label = paste0(round(participacion*100, 0), "%")),
+            position = position_stack(vjust = 0.5), size = 2.5,
+            direction = "x", min.segment.length = 5, max.overlaps = 100,
+                force_pull = 0.01, box.padding = 0.01) +
+  scale_fill_dnmye(breaks=c("Vivienda de familiares y amigos",
+                            "Segunda vivienda del hogar",
+                            "Hotel o similar hasta 3 estrellas",
+                            "Hotel similar 4 o 5 estrellas",
+                            "Vivienda alquilada por temporada",
+                            "Camping",
+                            "Resto")) +
+  scale_y_percent() +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.caption = element_markdown()) +
+  guides(fill=guide_legend(nrow=4,byrow=TRUE))+
+  labs(x = "", y = "", fill = "", caption = md("**Fuente**: DNMyE en base a información de la EVyTH"))
+
+#VARIABLES PARA TEXTO
+
+region_max_vivienda <- data_graph4 %>% filter(px08_agrup=="Vivienda de familiares y amigos") %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+
+region_max_vivienda_value <- data_graph4 %>% filter(px08_agrup=="Vivienda de familiares y amigos") %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+region_max_hotel3 <- data_graph4 %>% filter(px08_agrup=="Hotel o similar hasta 3 estrellas") %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+
+region_max_hotel3_value <- data_graph4 %>% filter(px08_agrup=="Hotel o similar hasta 3 estrellas") %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+```
+
+La **`r alojamiento1`** también se posicionó en primer lugar a nivel regional. Por ejemplo, en la región `r region_max_vivienda` ocupó el `r region_max_vivienda_value %>% lbl_percent()`. En segundo lugar, **Hotel o similar hasta 3 estrellas** también influyó significativamente. Por ejemplo, en `r region_max_hotel3` ocupó el `r region_max_hotel3_value %>% lbl_percent()` de los turistas.
+
+```{r evyth9, fig.cap=glue("Turistas con destino principal en Argentina por región de destino según tipo de alojamiento. Distribución porcentual. Año {Anio}.")}
+grafico4
+```
+
+
+**TIPO DE TRANSPORTE UTILIZADO:**
+
+```{r}
+data_tabla8 <- evyth %>% 
+  crear_etiqueta("px09_t") %>% 
+  group_by(px09_t) %>% 
+ summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+    mutate(Turistas = Turistas/sum(Turistas),
+         Pernoctes = Pernoctes/sum(Pernoctes),
+         Gasto = Gasto/sum(Gasto))
+
+
+total <- evyth %>% 
+  #filter(tipo_visitante == 1, anio == Anio) %>% 
+  mutate(px09_t = "Total") %>% 
+  group_by(px09_t) %>% 
+  summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+  mutate(Turistas = Turistas/1000,
+         Pernoctes = Pernoctes/1000,
+         Gasto = Gasto/1000000)
+
+tabla8 <- rbind(total, data_tabla8)
+
+tabla8 <- tabla8 %>% 
+   mutate(px09_t = case_when(px09_t == 1 ~ "Automóvil",
+                                     px09_t == 2 ~ "Ómnibus",
+                                     px09_t == 3 ~ "Avión",
+                                     px09_t == 4 ~ "Resto",
+                             TRUE ~ px09_t)) 
+
+tabla8_def <- tabla8 %>%  
+  arrange(desc(Turistas)) %>% 
+   gt() %>% 
+   cols_label(
+     px09_t = "",
+     Turistas = md("**Turistas <br>(en miles)**"),
+     Pernoctes = md("**Pernoctes <br>(en miles)**"),
+     Estadia_prom = md("**Estadía promedio**"), 
+     Gasto = md("**Gasto <br>(en millones de $)**"), 
+     Gasto_prom = md("**Gasto promedio <br>(en $)**"), 
+     Gasto_diario = md("**Gasto promedio diario <br>(en $)**")
+  ) %>%
+  gt_theme_dnmye(var_total = px09_t) %>% 
+  fmt_number(columns = c(4,6,7), rows = c(2:5), decimals = 1,  dec_mark = ",", sep_mark = ".") %>% 
+   fmt_number(columns = c(2:7), rows = 1, decimals = 1,  dec_mark = ",", sep_mark = ".") %>% 
+  fmt_percent(columns = c(2,3,5), rows = c(2:5), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  cols_align(
+    align = "center",
+    columns = c(Turistas, Pernoctes, Estadia_prom, 
+                Gasto, Gasto_prom, Gasto_diario))  %>% 
+  opt_table_font(
+    font = "Encode Sans"
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(caption = md(glue("Turistas, pernoctes, estadía promedio y gasto en Argentina por tipo de transporte. Total y distribución porcentual según categorías. Año {Anio}.")))
+
+#VARIABLES PARA TEXTO
+transporte <- tabla8 %>% filter(px09_t!="Total")
+transporte1 <-  transporte %>% arrange(-Turistas) %>% slice(1) %>% pull(px09_t) %>% as.character()
+transporte1_turistas <- transporte %>%  arrange(-Turistas) %>% slice(1) %>% pull(Turistas)
+transporte1_gasto <- transporte %>%  arrange(-Turistas) %>% slice(1) %>% pull(Gasto)
+transporte1_pernoctes <- transporte %>%  arrange(-Turistas) %>% slice(1) %>% pull(Pernoctes)
+
+transporte2 <- transporte %>%  arrange(-Turistas) %>% slice(2) %>% pull(px09_t) %>% as.character()
+transporte2_turistas <- transporte %>%  arrange(-Turistas) %>% slice(2) %>% pull(Turistas)
+
+transporte3 <- transporte %>%  arrange(-Turistas) %>% slice(3) %>% pull(px09_t) %>% as.character()
+transporte3_turistas <- transporte %>%  arrange(-Turistas) %>% slice(3) %>% pull(Turistas)
+
+transporte4 <- transporte %>%  arrange(-Turistas) %>% slice(4) %>% pull(px09_t) %>% as.character()
+transporte4_turistas <- transporte %>%  arrange(-Turistas) %>% slice(4) %>% pull(Turistas)
+
+```
+
+En lo que respecta al medio de transporte utilizado en `r as.character(Anio)` primó el **`r transporte1`** con el `r transporte1_turistas %>% lbl_percent` de los turistas y, al mismo tiempo, este transporte generó el `r transporte1_gasto %>% lbl_percent(decimales=0)` del gasto y el `r transporte1_pernoctes %>% lbl_percent` de las pernoctaciones. En segundo lugar se encontró **`r transporte2`** con el `r transporte2_turistas %>% lbl_percent` de los turistas, luego **`r transporte3`** (`r transporte3_turistas %>% lbl_percent`) y por último **`r transporte4`** (`r transporte4_turistas %>% lbl_percent`).
+
+```{r evyth133}
+tabla8_def
+```
+
+
+```{r}
+data_graph5 <- evyth %>% 
+  crear_etiqueta(c("region_destino")) %>% 
+  mutate(region_destino = str_replace(region_destino, 
+                                      "Provincia de Buenos Aires", "PBA"),
+                  px09_t = case_when(px09_t == 1 ~ "Automóvil",
+                                     px09_t == 2 ~ "Ómnibus",
+                                     px09_t == 3 ~ "Avión",
+                                     px09_t == 4 ~ "Resto")) %>%  
+  group_by(region_destino, px09_t) %>% 
+  summarise(Turistas = sum(pondera)) %>% 
+  ungroup() %>% 
+  group_by(region_destino) %>% 
+  mutate(total = sum(Turistas)) %>% 
+  ungroup() %>% 
+  mutate(participacion = Turistas/total,
+         px09_t= fct_reorder(px09_t, participacion))
+
+grafico5 <- data_graph5 %>% 
+  ggplot() +
+  geom_col(aes(region_destino, participacion, fill = px09_t), 
+           position="fill", width = 0.8) +
+  ggrepel::geom_text_repel(aes(x = region_destino, y = participacion, group = px09_t,
+                label = paste0(round(participacion*100, 0), "%")),
+            position = position_stack(vjust = 0.5), size = 2.5,
+            direction = "x", min.segment.length = 5, max.overlaps = 100,
+                force_pull = 0.01, box.padding = 0.01) +
+  scale_fill_dnmye(breaks=c("Automóvil",
+                            "Ómnibus",
+                            "Avión",
+                            "Resto")) +
+  scale_y_percent() +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.caption= element_markdown()) +
+  labs(x = "", y = "", fill = "", caption = md("**Fuente**: DNMyE en base a información de la EVyTH"))
+
+
+#VARIABLES PARA TEXTO
+
+region_max_auto <- data_graph5 %>% filter(px09_t=="Automóvil") %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+
+region_max_auto_value <- data_graph5 %>% filter(px09_t=="Automóvil") %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+region_max_avion <- data_graph5 %>% filter(px09_t=="Avión") %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+
+region_max_avion_value <- data_graph5 %>% filter(px09_t=="Avión") %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+region_max_omnibus <- data_graph5 %>% filter(px09_t=="Ómnibus") %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+
+region_max_omnibus_value <- data_graph5 %>% filter(px09_t=="Ómnibus") %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+region_max_resto <- data_graph5 %>% filter(px09_t=="Resto") %>% arrange(-participacion) %>% slice(1) %>% pull(region_destino)
+
+region_max_resto_value <- data_graph5 %>% filter(px09_t=="Resto") %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+#**Avión** ocupó el segundo lugar en `r region_max_avion` con el `r region_max_avion_value %>% lbl_percent()`. En tercer lugar **Ómnibus** en la región `r region_max_omnibus` con el `r region_max_omnibus_value %>% lbl_percent()`. Por último, con un porcentaje minímo, la categoría **Resto** con el  `r region_max_resto_value %>% lbl_percent()` en la región `r region_max_resto`.
+```
+
+El **`r transporte1`** también se posicionó en primer lugar a nivel regional. Por ejemplo, en la región `r region_max_auto` ocupó el `r region_max_auto_value %>% lbl_percent()`. El **Avión** fue el segundo medio de transporte más utilizado en las regiones de Patagonia (27,5%) y Ciudad de Buenos Aires (23,9%), mientras que **Ómnibus** ocupó el segundo lugar para el resto de las regiones.
+
+
+```{r evyth11, fig.cap=glue("Turistas con destino principal en Argentina por región de destino según tipo de transporte utilizado. Distribución porcentual. Año {Anio}.")}
+grafico5
+```
+
+**TAMAÑO DEL GRUPO DE VIAJE:**
+
+```{r}
+data_tabla9 <- evyth %>% 
+  crear_etiqueta("px06_agrup") %>% 
+  group_by(px06_agrup) %>% 
+ summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+    mutate(Turistas = Turistas/sum(Turistas),
+         Pernoctes = Pernoctes/sum(Pernoctes),
+         Gasto = Gasto/sum(Gasto))
+
+
+total <- evyth %>% 
+  #filter(tipo_visitante == 1, anio == Anio) %>% 
+  mutate(px06_agrup = "Total") %>% 
+  group_by(px06_agrup) %>% 
+  summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+  mutate(Turistas = Turistas/1000,
+         Pernoctes = Pernoctes/1000,
+         Gasto = Gasto/1000000)
+
+tabla9 <- rbind(total, data_tabla9)
+
+tabla9 <- tabla9 %>% 
+   gt() %>% 
+   cols_label(
+     px06_agrup = "",
+     Turistas = md("**Turistas <br>(en miles)**"),
+     Pernoctes = md("**Pernoctes <br>(en miles)**"),
+     Estadia_prom = md("**Estadía promedio**"), 
+     Gasto = md("**Gasto <br>(en millones de $)**"), 
+     Gasto_prom = md("**Gasto promedio <br>(en $)**"), 
+     Gasto_diario = md("**Gasto promedio diario <br>(en $)**")
+  ) %>%
+  gt_theme_dnmye(var_total = px06_agrup) %>% 
+  fmt_number(columns = c(4,6,7), rows = c(2:4), decimals = 1,  dec_mark = ",", sep_mark = ".") %>% 
+   fmt_number(columns = c(2:7), rows = 1, decimals = 1,  dec_mark = ",", sep_mark = ".") %>% 
+  fmt_percent(columns = c(2,3,5), rows = c(2:4), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  cols_align(
+    align = "center",
+    columns = c(Turistas, Pernoctes, Estadia_prom, 
+                Gasto, Gasto_prom, Gasto_diario))  %>% 
+  opt_table_font(
+    font = "Encode Sans"
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(caption = md(glue("Turistas, pernoctes, estadía promedio y gasto en argentina por tamaño del grupo. Total y distribución porcentual según categorías. Año {Anio}.")))
+
+#VARIABLES PARA TEXTO 
+
+grupo1 <- data_tabla9 %>% arrange(-Turistas) %>% slice(1) %>% pull(px06_agrup)
+grupo1_value <- data_tabla9 %>% arrange(-Turistas) %>% slice(1) %>% pull(Turistas)
+  
+grupo1_gasto <- data_tabla9 %>% arrange(-Turistas) %>% slice(1) %>% pull(Gasto)
+  
+grupo1_pernoctes <- data_tabla9 %>% arrange(-Turistas) %>% slice(1) %>% pull(Pernoctes)
+
+grupo2 <- data_tabla9 %>% arrange(-Turistas) %>% slice(2) %>% pull(px06_agrup)
+grupo2_value <- data_tabla9 %>% arrange(-Turistas) %>% slice(2) %>% pull(Turistas)
+
+grupo3 <- data_tabla9 %>% arrange(-Turistas) %>% slice(3) %>% pull(px06_agrup)
+grupo3_value <- data_tabla9 %>% arrange(-Turistas) %>% slice(3) %>% pull(Turistas)
+```
+
+Respecto al tamaño del grupo de viaje, se observó que el `r grupo1_value %>% lbl_percent()` de los turistas lo hicieron en grupos de **`r grupo1`**, seguido del `r grupo2_value %>% lbl_percent()` que fueron **`r grupo2`**, en tanto que, el `r grupo3_value %>% lbl_percent()` de los turistas fueron grupos de **`r grupo3`**. Por su parte, el primer grupo representó el `r grupo1_gasto %>%  lbl_percent()` del gasto y el `r grupo1_pernoctes %>%  lbl_percent()` de las pernoctaciones.
+
+```{r evyth13}
+tabla9
+```
+
+**ACTIVIDADES TURÍSTICAS REALIZADAS:**
+
+```{r}
+data_graph6 <- evyth %>% 
+  select(trimestre, pondera,px17_2_1,px17_2_2,px17_2_3,px17_2_4,px17_2_5,px17_2_6,
+         px17_2_7,px17_2_8,px17_2_9,px17_2_10,px17_2_11,px17_2_12,px17_2_13) %>%
+  crear_etiqueta(c( "px17_2_1","px17_2_2","px17_2_3","px17_2_4","px17_2_5","px17_2_6",
+                       "px17_2_7","px17_2_8","px17_2_9","px17_2_10","px17_2_11","px17_2_12","px17_2_13")) %>% 
+  # sjlabelled::label_to_colnames() %>% 
+  # rename_with(~ str_remove(., pattern = ".*?ActTur.")) %>% 
+  pivot_longer(cols = c(px17_2_1:px17_2_13), values_to = "factor") %>% 
+  group_by(trimestre, name, factor) %>%
+  summarise(turistas = sum(pondera, na.rm = T)) %>%
+  ungroup() %>% 
+  rename(categoria = name) %>% 
+  group_by(categoria) %>% 
+  mutate(participacion = turistas/sum(turistas)) %>% 
+  filter(factor=="Si") %>% 
+  mutate(categoria = case_when(
+    categoria == "px17_2_1" ~ "Visitaron espacios rurales como estancias, granjas, etc.",
+    categoria == "px17_2_2" ~ "Fueron a un spa, a termas, etc.",
+    categoria == "px17_2_3" ~ "Fueron a la playa (mar, río, lago)",
+    categoria == "px17_2_4" ~ "Hicieron esquí, snowboard, u otro deporte de nieve",
+    categoria == "px17_2_5" ~ "Realizaron deportes de aventura como mountain bike, montañismo, rafting, travesías, ala delta, etc.",
+    categoria == "px17_2_6" ~ "Fueron a cazar y/o a pescar",
+    categoria == "px17_2_7" ~ "Fueron a ver algún espectáculo deportivo",
+    categoria == "px17_2_8" ~ "Asistieron a algún acto o festividad religiosa",
+    categoria == "px17_2_9" ~ "Fueron al teatro, al cine, a ver conciertos o a recitales",
+    categoria == "px17_2_10" ~ "Visitaron museos, monumentos, parques temáticos, zoológicos, etc.",
+    categoria == "px17_2_11" ~ "Visitaron parques nacionales o provinciales, reservas, etc.",
+    categoria == "px17_2_12" ~ "Fueron a casinos o bingos",
+    categoria == "px17_2_13" ~ "Salieron a la noche a discotecas, pubs, etc."
+  )) %>% 
+  mutate(categoria = str_wrap(categoria, 30),
+         trimestre = factor(paste0(trimestre, "° Trim"), 
+                            levels = c("1° Trim",
+                                       "2° Trim",
+                                       "3° Trim",
+                                       "4° Trim")),
+         trimestre = fct_reorder(trimestre, desc(trimestre))) %>% 
+  ungroup()
+
+labels <- data_graph6 %>% 
+  group_by(categoria) %>% 
+  summarise(participacion = sum(participacion)) %>% 
+  ungroup()
+
+grafico6 <- data_graph6 %>% 
+  ggplot() +
+    geom_col(aes(reorder(categoria, participacion), participacion, fill = trimestre), width = 0.9) +
+    geom_text(data = labels, aes(categoria, participacion,
+                  label = scales::percent(participacion, decimal.mark = ",", accuracy = 0.1)), hjust = -0.1,  size = 3) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 5L),
+                       limits = c(0,0.5)) +
+    coord_flip() +
+     theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.caption = element_markdown()) +
+  scale_fill_dnmye(breaks=c("1° Trim","2° Trim","3° Trim", "4° Trim"))+
+  labs(x = "", y = "", fill = "", caption = md("**Fuente**: DNMyE en base a información de la EVyTH"))
+
+#VARIABLES PARA TEXTO
+
+act1_value <- data_graph6 %>% filter(str_detect(categoria, "playa")) %>% summarise(participacion=sum(participacion)) %>% pull(participacion)
+act1_trim <- data_graph6 %>% filter(str_detect(categoria, "playa")) %>% arrange(-participacion) %>% slice(1) %>% pull(trimestre) %>% as.character()
+act1_trim_value <- data_graph6 %>% filter(str_detect(categoria, "playa")) %>% arrange(-participacion) %>% slice(1) %>% pull(participacion)
+
+act2_value <- data_graph6 %>% filter(str_detect(categoria, "reservas")) %>% summarise(participacion=sum(participacion)) %>% pull(participacion)
+act2_trim <- data_graph6 %>% filter(str_detect(categoria, "reservas")) %>% arrange(-participacion) %>% slice(1) %>% pull(trimestre) %>% as.character()
+
+act3_value <- data_graph6 %>% filter(str_detect(categoria, "museos")) %>% summarise(participacion=sum(participacion)) %>% pull(participacion)
+act3_trim <- data_graph6 %>% filter(str_detect(categoria, "museos")) %>% arrange(-participacion) %>% slice(1) %>% pull(trimestre) %>% as.character()
+```
+
+Consultados los turistas acerca de las actividades que realizaron durante sus viajes en el año `r as.character(Anio)`, `r act1_value %>% lbl_percent()` indicó que realizaron **actividades de playa** (el `r act1_trim_value %>% lbl_percent()` lo hizo durante el `r act1_trim` del año por razones de estacionalidad). En segundo lugar, se ubicó la **visita a parques nacionales o provinciales, reservas, etc.** actividad realizada por el `r act2_value %>% lbl_percent()` (en este caso se concentró principalmente en el `r act2_trim`). La tercera actividad más mencionada resultó ser la **visita a museos, monumentos, parques temáticos, zoológicos, etc.** (`r act3_value %>% lbl_percent()`) realizada con mayor frecuencia durante el `r act3_trim`.
+
+```{r evyth14, fig.cap=glue("Turistas con destino principal en Argentina por trimestre, según actividad realizada. Año {Anio}."), fig.height=8}
+grafico6
+```
+
+**USO DE PAQUETE TURÍSTICO:**
+
+```{r}
+data_tabla10 <- evyth %>% 
+  crear_etiqueta("px11") %>% 
+  group_by(px11) %>% 
+ summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+    mutate(Turistas = Turistas/sum(Turistas),
+         Pernoctes = Pernoctes/sum(Pernoctes),
+         Gasto = Gasto/sum(Gasto))
+
+
+total <- evyth %>% 
+  #filter(tipo_visitante == 1, anio == Anio) %>% 
+  mutate(px11 = "Total") %>% 
+  group_by(px11) %>% 
+  summarise(Turistas = sum(pondera, na.rm = T),
+            Pernoctes = sum(pondera * px07, na.rm = T),
+            Estadia_prom = Pernoctes/Turistas,
+            Gasto = sum(pondera * gasto_pc, na.rm = T),
+            Gasto_prom = Gasto/Turistas,
+            Gasto_diario = Gasto/Pernoctes,
+            ) %>% 
+  ungroup() %>% 
+  mutate(Turistas = Turistas/1000,
+         Pernoctes = Pernoctes/1000,
+         Gasto = Gasto/1000000) 
+
+tabla10 <- rbind(total, data_tabla10)
+
+tabla10 <- tabla10 %>% 
+   gt() %>% 
+   cols_label(
+     px11 = "",
+     Turistas = md("**Turistas <br>(en miles)**"),
+     Pernoctes = md("**Pernoctes <br>(en miles)**"),
+     Estadia_prom = md("**Estadía promedio**"), 
+     Gasto = md("**Gasto <br>(en millones de $)**"), 
+     Gasto_prom = md("**Gasto promedio <br>(en $)**"), 
+     Gasto_diario = md("**Gasto promedio diario <br>(en $)**")
+  ) %>%
+  gt_theme_dnmye(var_total = px11) %>% 
+  fmt_number(columns = c(4,6,7), rows = c(2:5), decimals = 1,  dec_mark = ",", sep_mark = ".") %>% 
+   fmt_number(columns = c(2:7), rows = 1, decimals = 1,  dec_mark = ",", sep_mark = ".") %>% 
+  fmt_percent(columns = c(2,3,5), rows = c(2:5), decimals = 1, dec_mark = ",", sep_mark = ".") %>% 
+  cols_align(
+    align = "center",
+    columns = c(Turistas, Pernoctes, Estadia_prom, 
+                Gasto, Gasto_prom, Gasto_diario))  %>% 
+  opt_table_font(
+    font = "Encode Sans"
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "**Fuente**: DNMyE en base a información de la EVyTH")
+  ) %>% 
+  tab_caption(caption = md(glue("Turistas, pernoctes, estadía promedio y gasto en Argentina por utilización de paquete turístico. Total y distribución porcentual según categorías. Año {Anio}.")))
+
+#VARIABLES PARA TEXTO
+
+paquete_si <- data_tabla10 %>% filter(px11=="Si") %>% pull(Turistas)
+paquete_gasto_si <- data_tabla10 %>% filter(px11=="Si") %>% pull(Gasto)
+
+paquete_no <- data_tabla10 %>% filter(px11=="No") %>% pull(Turistas)
+paquete_gasto_no <- data_tabla10 %>% filter(px11=="No") %>% pull(Gasto)
+
+```
+
+Finalmente, el `r paquete_no %>% lbl_percent(decimales=0)` de los turistas **no utilizó** paquete turístico para viajar. Mientras que el `r paquete_si %>% lbl_percent()` **sí** lo hizo. El gasto turístico se repartió en un `r paquete_gasto_si %>% lbl_percent()` entre quienes usaron un paquete y el `r paquete_gasto_no %>% lbl_percent()` entre quienes no lo usaron.
+
+```{r evyth15, fig.cap=glue()}
+tabla10
+```
+
+## Recursos disponibles
+
+Los datos que se muestran en este capítulo forman parte del Sistema de Información Turística de la Argentina (SINTA) <https://www.yvera.tur.ar/sinta/>{target="_blank"} de la Dirección Nacional de Mercados y Estadística (DNMyE) y se presentan a través de distintos formatos:
+
+-   [Informes:](https://www.yvera.tur.ar/sinta/informe/info/encuesta-de-viajes-y-turismo-de-los-hogares-evyth){target="_blank"} publicación trimestral de la Encuesta de Viajes y Turismo de los Hogares. La misma tiene como objetivo medir la evolución del turismo interno, es decir los viajes realizados por los turistas argentinos por Argentina, sus características y los aspectos socio-demográficos de aquellos turistas.
+
+-   [Reporte:](https://tableros.yvera.tur.ar/interno.html){target="_blank"} presenta los últimos datos de Turismo Interno estimados por la Encuesta de Viajes y Turismo de los Hogares.
+
+-   [Datos Abiertos:](https://datos.yvera.gob.ar/dataset?groups=turismo-interno){target="_blank"} el portal incluye un conjunto de datasets y recursos disponibles en diferentes niveles de desagregación y en variados formatos en caso de que se necesite un reprocesamiento de los mismos.
+

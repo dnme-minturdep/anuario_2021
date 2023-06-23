@@ -1,0 +1,336 @@
+---
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+# Fichas Técnicas {-}
+
+```{r include=F}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.topcaption=TRUE)
+library(googlesheets4)
+library(gt)
+library(tidyverse)
+
+gs4_deauth()
+```
+
+```{r}
+ficha_tecnica_cap1 <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=0")
+
+ficha_tecnica_tabla_cap1 <- ficha_tecnica_cap1 %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 1: EL TURISMO EN EL MUNDO**"))
+```
+
+```{r}
+ficha_tecnica_tabla_cap1
+```
+
+```{r}
+ficha_tecnica_ti_total <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=1443452404",sheet = "2_1_turismo_internacional_total")
+
+ficha_tecnica_ti_total_tabla <- ficha_tecnica_ti_total %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 2.1: TURISMO INTERNACIONAL EN ARGENTINA - TODOS LOS PASOS**"))
+```
+
+```{r}
+ficha_tecnica_ti_total_tabla
+```
+
+```{r}
+ficha_tecnica_ti_eti <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=1443452404",sheet = "2_2_turismo_internacional_eti")
+
+ficha_tecnica_ti_eti_tabla <- ficha_tecnica_ti_eti %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 2.1: TURISMO INTERNACIONAL EN ARGENTINA - ENCUESTA DE TURISMO INTERNACIONAL**"))
+```
+
+```{r}
+ficha_tecnica_ti_eti_tabla
+```
+
+```{r}
+ficha_tecnica_interno <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=1443452404",sheet = "3_turismo_interno")
+
+ficha_tecnica_interno_tabla <- ficha_tecnica_interno %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 3: TURISMO INTERNO**"))
+```
+
+```{r}
+ficha_tecnica_interno_tabla
+```
+
+```{r}
+ficha_tecnica_eoh <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=1443452404",sheet = "4_alojamiento")
+
+ficha_tecnica_eoh_tabla <- ficha_tecnica_eoh %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 4: OCUPACIÓN HOTELERA**"))
+```
+
+```{r}
+ficha_tecnica_eoh_tabla
+```
+
+
+
+```{r}
+ficha_tecnica_cap_parques <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=0",
+                                        sheet = "5_parques")
+
+ficha_tecnica_tabla_cap_parques <- ficha_tecnica_cap_parques %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 5: VISITAS A LOS PARQUES NACIONALES**"))
+```
+
+```{r}
+ficha_tecnica_tabla_cap_parques
+```
+
+
+
+```{r}
+ficha_tecnica_aereo <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=0",
+                                  sheet="6_transporte_aéreo")      
+
+ficha_tecnica_tabla_aereo <- ficha_tecnica_aereo %>% 
+  filter(!is.na(descripcion)) %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 6: TRANSPORTE AÉREO**"))
+```
+
+```{r}
+ficha_tecnica_tabla_aereo
+```
+
+```{r}
+ficha_tecnica_cap_agencias <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=0",
+                                        sheet = "7_agencias")
+
+ficha_tecnica_tabla_cap_agencias <- ficha_tecnica_cap_agencias %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 7: AGENCIAS DE VIAJES**"))
+```
+
+```{r}
+ficha_tecnica_tabla_cap_agencias
+```
+
+```{r}
+ficha_tecnica_cap_indicadores <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=0",
+                                        sheet = "8_indicadores_econ")
+
+ficha_tecnica_tabla_cap_indicadores <- ficha_tecnica_cap_indicadores %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 8: INDICADORES ECONÓMICOS DEL TURISMO**"))
+```
+
+```{r}
+ficha_tecnica_tabla_cap_indicadores
+```
+
+
+```{r}
+ficha_tecnica_cap_empleo_EOH <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=0",
+                                        sheet = "9_empleo_eoh")
+
+ficha_tecnica_tabla_cap_empleo_eoh <- ficha_tecnica_cap_empleo_EOH %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 9.1: EMPLEO EN HOTELES Y PARAHOTELES**"))
+```
+```{r}
+ficha_tecnica_tabla_cap_empleo_eoh
+```
+
+```{r}
+ficha_tecnica_cap_empleo_CEP <- read_sheet("https://docs.google.com/spreadsheets/d/1fjV-fNrW3VvYlmKx3xlJ3s3a26WrLBVMZiXR2KXVFXk/edit#gid=0",
+                                        sheet = "9_empleo_cep")
+
+ficha_tecnica_tabla_cap_empleo_cep <- ficha_tecnica_cap_empleo_CEP %>% 
+  group_by(tema) %>% 
+  gt() %>% 
+  cols_label(subtema = "",
+             descripcion = "")  %>% 
+  tab_options(row_group.background.color = "grey") %>% 
+  tab_style(
+    style = list(
+      cell_text(align = "center",
+                weight = "bold")
+    ),
+    locations = cells_row_groups()
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_text(weight = "bold")
+    ),
+    locations = cells_body(column=subtema)) %>% 
+  tab_header(title = md("**CAPÍTULO 9.2: PUESTOS DE TRABAJO REGISTRADOS Y EMPRESAS EN RAMAS CARACTERÍSTICAS DEL TURISMO**"))
+```
+
+```{r}
+ficha_tecnica_tabla_cap_empleo_cep
+```
+

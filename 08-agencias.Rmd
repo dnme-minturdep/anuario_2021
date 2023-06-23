@@ -1,0 +1,588 @@
+---
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r include=FALSE}
+#Librerias
+library(tidyverse)
+library(gt)
+library(arrow)
+library(herramientas)
+library(comunicacion)
+library(glue)
+library(googlesheets4)
+library(lubridate)
+library(data.table)
+library(ggtext)
+
+options(scipen = 999)
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE,echo=FALSE,fig.topcaption=TRUE)
+
+
+```
+
+# **Agencias de Viajes** {#agencias}
+
+```{r}
+anio <- 2021
+
+#Base de datos
+base_diciembre <- read_file_srv("/srv/DataDNMYE/agencias/rlm/anteriores/version_diciembre_2021_registro_renovacion_de_garantia_oficial.xlsx") %>% 
+  janitor::clean_names() 
+
+legajos <-  base_diciembre %>% pull(legajo)
+
+base_agencias <- read_file_srv("/srv/DataDNMYE/agencias/rlm/base_agencias.rds")
+
+base_agencias <- base_agencias %>% 
+  filter(numero_de_legajo %in% legajos,
+         !is.na(categoria))
+
+```
+
+## Introducción
+
+En esta sección se presentan los datos de las agencias de viajes habilitadas en el país, en base al Registro de Agencias de Viajes de la Dirección Nacional de Agencias de Viajes. A partir de dichos registros administrativos, se caracteriza el sector de agencias de viajes que operan dentro del país, de acuerdo a su actividad principal y ubicación geográfica.
+
+La ausencia de un registro formal que cumpla con lo dispuesto por la normativa[^normativa-agencias], y la falta de alternativas que hayan permitido contabilizar las agencias registradas de manera unívoca, hizo que no fuera posible reconstruir para el período 2016-2020 la información históricamente publicada en los anuarios. En 2021 se inició un proceso de recuperación registral, que implicó la digitalización de los trámites de la DNAV y la mejora de los procedimientos internos y los mecanismos de transparencia y seguridad informática que culminó con la actualización completa en la plataforma RLM del registro correspondiente al año 2022. La información que se presenta en esta sección refleja la transición mencionada, con una mayor desagregación en lo que refiere a distribución regional, tipo de operaciones de las agencias y los mercados emisores y de destinos de los viajes, entre otras variables. 
+
+[^normativa-agencias]: Con la creación del sistema Gestión Documental Electrónica (GDE), y mediante el Decreto Nº 1.306/16, se implementó el módulo Registro Legajo Multipropósito (RLM) como único medio de administración de los registros de las entidades. Además, se aprobó la implementación de la plataforma Trámites a Distancia (TAD) como medio de interacción del ciudadano con la administración, a través de la recepción y remisión por medios electrónicos de presentaciones, solicitudes, escritos, notificaciones y comunicaciones, entre otros, lo que permite la trazabilidad de los datos.
+
+## Resumen del registro de agencias de viajes
+
+```{r}
+#Levanto serie anuario
+serie <- read_file_srv("/srv/DataDNMYE/agencias/anuario/agencias_categoria_2004-2015.csv") %>% 
+  mutate(var = as.double(str_replace(var, ",", ".")),
+         across(c(total, EVT, AT, AP, ESFL), as.integer))
+
+categoria <- base_agencias %>% 
+  count(categoria) %>%
+  mutate(categoria = case_when(
+           categoria == "Empresa de Viajes y Turismo (EVT)" ~ "EVT",
+            categoria == "Agencia de Turismo (AT)" ~ "AT",
+            categoria == "Agencia de Pasajes (AP)" ~ "AP",
+           TRUE ~ categoria
+         )) %>% 
+  pivot_wider(., names_from = categoria, values_from = n) %>% 
+  mutate(anio = 2021, 
+         total = sum(AP, AT, EVT, ESFL),
+         var = NA)
+
+serie <- serie %>% 
+  rbind(categoria)
+
+
+var2015 <- str_remove(pull((serie[serie$anio == anio, "total"]/serie[serie$anio == 2015, "total"])-1) %>% lbl_percent(), "-")
+
+```
+
+Respecto del año 2015, el número de agencias registró una disminución del `r var2015` en el año `r as.character(anio)`, con un total de `r lbl_int(pull(serie[serie$anio == anio, "total"]))`. El total se compone de `r serie %>% filter(anio == .GlobalEnv$anio) %>% pull(EVT) %>% format(big.mark=".")` Empresas de viajes y turismo (EVT), `r serie %>% filter(anio == .GlobalEnv$anio) %>% pull(AT) %>% format(big.mark=".")` Agencias de turismo (AT), `r serie %>% filter(anio == .GlobalEnv$anio) %>% pull(AP) %>% format(big.mark=".")` Agencias de pasajes (AP) y `r serie %>% filter(anio == .GlobalEnv$anio) %>% pull(ESFL) %>% format(big.mark=".")` Empresas sin fines de lucro (ESFL).
+
+```{r}
+#Tabla evolución por categoria
+# tabla_1 <- serie %>% 
+#   mutate(anio = as.character(anio)) %>% 
+#   gt() %>% 
+#   cols_label(anio = "Año",
+#              total = "Total",
+#              var = "Var i.a. %") %>%
+#     gt_theme_dnmye() %>%
+#   sub_missing(columns = everything(),  missing_text = "-") %>% 
+#   tab_footnote("Nota: no se cuenta con datos del Registro de Agencias de Viajes para el período 2016-2020.") %>% 
+#   tab_footnote(md("**Fuente**: Dirección Nacional de Mercados y Estadística (DNMyE) en base a datos de la Dirección Nacional de Agencias de Viajes.")) %>% 
+#   fmt_percent(columns = var, decimals = 1, dec_mark = ",") %>%  
+#   tab_caption(glue("Agencias de viajes habilitadas por tipo de categoría. Total país. Años 2004-2015/{anio}."))
+
+```
+
+```{r agencias1}
+
+# tabla_1
+```
+
+```{r agencias2, fig.cap=glue("Agencias de viajes habilitadas por tipo de categoría. Total país. Años 2004-2015/{anio}."), fig.height=4}
+# Gráfico evolución por categoria
+serie %>% 
+  pivot_longer(cols = c(EVT, AT, AP, ESFL), 
+               names_to = "categoria", values_to = "cantidad") %>% 
+  ggplot() +
+  geom_col(aes(anio, cantidad, fill = categoria)) +
+  geom_text(aes(anio, cantidad, label = cantidad, group = categoria), position = position_stack(vjust = 0.5), size = 2.5) +
+  labs(x = "", y = "", fill = "Categoría", 
+       caption = md("**Fuente**: DNMyE en base a datos de la Dirección Nacional de Agencias de Viajes.")) +
+  scale_fill_dnmye() +
+  scale_x_continuous(breaks = c(seq(2004,2015,2), anio)) +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        plot.caption = element_markdown())
+```
+
+```{r}
+# Base de sucursales
+
+#gs4_deauth()
+
+#agencias_suc <- read_sheet("https://docs.google.com/spreadsheets/d/1wJ4rrbvBFd1sgX-Ibo12QUC2QR-wG0et6bfshNWcx3U/edit#gid=0")
+
+#write_csv(agencias_suc, "agencias_sucursales.csv")
+
+agencias_suc <- read_file_srv("agencias/agencias_sucursales.csv")
+
+tabla_sucursales <- agencias_suc %>% 
+  filter(legajo %in% legajos) %>% 
+  mutate(sucursal = case_when(str_detect(sucursal, "Sucursal") ~ "Sucursales",
+                              TRUE ~ "Casas matrices"),
+         provincia = str_to_title(as.character(provincia)),
+         provincia = case_when(provincia == "Caba" ~ "CABA",
+                               provincia == "Santa Fé" ~ "Santa Fe",
+                               provincia %in% c("5009", "1425", "Null") ~ "Sin dato",
+                               TRUE ~ provincia)) %>% 
+  filter(!is.na(sucursal), provincia != "Sin dato") %>% 
+  mutate(region = case_when(provincia %in% c("La Rioja", "Catamarca", "Tucumán",
+                                             "Jujuy", "Salta", "Santiago Del Estero") ~ "Norte",
+                            provincia %in% c("Córdoba") ~ "Centro",
+                            provincia %in% c("Misiones","Corrientes",
+                                             "Entre Ríos","Santa Fe",
+                                             "Chaco","Formosa") ~ "Litoral",
+                            provincia == "Buenos Aires" ~ "Prov. de Buenos Aires",
+                            provincia == "CABA" ~ "CABA",
+                            provincia %in% c("Mendoza","San Juan","San Luis") ~ "Cuyo",
+                            provincia %in% c("La Pampa","Río Negro","Neuquén","Chubut","Santa Cruz", "Tierra Del Fuego") ~ "Patagonia",
+                            TRUE ~ "Sin dato"))
+
+tabla_sucursales <- tabla_sucursales %>%
+  group_by(region, tipo) %>% 
+  count(sucursal) %>% 
+  ungroup() %>% 
+  pivot_wider(names_from = "tipo", values_from = "n") %>% 
+  rowwise() %>% 
+  mutate(Total = sum(AP, AT, ESFL, EVT, na.rm = T)) %>% 
+  ungroup() %>% 
+  rename(tipo = sucursal) %>% 
+  arrange(region, desc(tipo))
+
+total_pais <- tabla_sucursales %>% 
+  group_by(tipo) %>% 
+  summarise(Total = sum(AP, AT, ESFL, EVT, na.rm = T),
+            AP = sum(AP, na.rm = T),
+            AT = sum(AT, na.rm = T),
+            ESFL = sum(ESFL, na.rm = T),
+            EVT = sum(EVT, na.rm = T),
+            region = "País") %>% 
+  ungroup() %>% 
+  arrange(desc(tipo))
+
+totales <- total_pais  %>% 
+  rbind(tabla_sucursales) %>% 
+  group_by(region) %>% 
+  summarise(Total = sum(AP, AT, ESFL, EVT, na.rm = T),
+            AP = sum(AP, na.rm = T),
+            AT = sum(AT, na.rm = T),
+            ESFL = sum(ESFL, na.rm = T),
+            EVT = sum(EVT, na.rm = T),
+            tipo = paste0("Total ",region)) %>% 
+  ungroup() %>% 
+  distinct()
+
+tabla <- rbind(total_pais, tabla_sucursales, totales) %>% 
+  arrange(match(region, "País"))
+
+
+total_pais <- tabla %>% 
+  filter(tipo == "Total País") %>% 
+  pull(Total)
+
+suc_pais <- tabla %>% 
+  filter(region == "País", tipo == "Sucursales") %>% 
+  pull(Total) 
+
+mat_pais <- tabla %>% 
+  filter(region == "País", tipo == "Casas matrices") %>% 
+  pull(Total)
+
+suc_proc <- suc_pais/total_pais
+mat_prop <- mat_pais/total_pais
+
+```
+
+Al analizar la distribución de agencias por categoría, se ve que de los `r lbl_int(total_pais)` establecimientos el `r lbl_percent(suc_proc, decimales = 0)` corresponde a sucursales (`r lbl_int(suc_pais)`), mientras que el `r lbl_percent(mat_prop, decimales = 0)` restante son casas matrices (`r lbl_int(mat_pais)`). 
+
+Una agencia se identifica como una entidad que puede tener más de un establecimiento, por ejemplo, contar con un local en distintas localidades del país. Debido a esto, el total de establecimientos (6.013), sean sucursales o casas matrices, es mayor que el número de agencias únicas (5.057).
+
+```{r agencias3}
+
+tabla_2 <- tabla %>% 
+  select(region, tipo, Total, EVT,AT,AP,ESFL) %>% 
+  gt(groupname_col = "region") %>% 
+  sub_missing(columns = everything(),  missing_text = "-") %>% 
+  gt_theme_dnmye() %>% 
+  cols_label(tipo = md("Tipo")) %>% 
+  tab_options(row_group.font.weight = "bold",
+               container.height = 600,
+              container.overflow.y = T) %>% 
+  tab_footnote(md("**Fuente**: DNMyE en base a datos de la Dirección Nacional de Agencias de Viajes.")) %>% 
+  tab_caption(glue("Establecimientos de agencias de viajes habilitadas por tipo de categoría y región. Total país. Año {anio}."))
+
+tabla_2
+```
+
+CABA encabeza el ranking de regiones según cantidad de agencias (23,4%), seguida de Buenos Aires (22,1%) y el Litoral (16,3%).
+
+```{r}
+#Gráfico por región
+regiones <- base_agencias %>% 
+  mutate(provincia = str_to_title(provincia),
+         region = case_when(provincia %in% c("La Rioja", "Catamarca", "Tucuman",
+                                             "Jujuy", "Salta", "Santiago Del Estero") ~ "Norte",
+                            provincia %in% c("Cordoba") ~ "Centro",
+                            provincia %in% c("Misiones","Corrientes",
+                                             "Entre Rios","Santa Fe",
+                                             "Chaco","Formosa") ~ "Litoral",
+                            provincia == "Buenos Aires" ~ "Prov. de Buenos Aires",
+                            provincia == "Ciudad Autonoma De Buenos Aires" ~ "CABA",
+                            provincia %in% c("Mendoza","San Juan","San Luis") ~ "Cuyo",
+                            provincia %in% c("La Pampa","Rio Negro","Neuquen","Chubut","Santa Cruz", "Tierra del Fuego") ~ "Patagonia",
+                            TRUE ~ "Sin dato")) %>% 
+  group_by(region) %>% 
+  summarise(cantidad = n()/nrow(base_agencias))
+```
+
+
+```{r agencias4, fig.cap=glue("Agencias de viajes habilitadas por región. Total país. Año {anio}."), fig.height=4}
+regiones %>% 
+  ggplot() +
+  geom_col(aes(reorder(region, cantidad), cantidad, fill = cantidad)) +
+  geom_text(aes(reorder(region, cantidad), cantidad, 
+                label = paste0(format(round(cantidad*100,1), decimal.mark = ","), " %")),
+            hjust = 1.2, size = 2.5) +
+  scale_fill_dnmye(discrete = F) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x="", y = "",
+       caption = md("**Fuente**: DNMyE en base a datos de la Dirección Nacional de Agencias de Viajes.")) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.caption = element_markdown()) 
+```
+
+
+```{r}
+# Gráfico por provincia
+provincias <- base_agencias %>% 
+  mutate(provincia = str_to_title(provincia),
+         provincia = case_when(provincia %in% c("Otro Lugar", "Sin Informacion") ~ "Sin dato",
+                               provincia %in% c("Ciudad Autonoma De Buenos Aires", "Caba") ~ "CABA",
+                               TRUE ~ provincia),
+         provincia = case_when(provincia == "Rio Negro" ~ "Río Negro",
+                               provincia == "Cordoba" ~ "Córdoba",
+                               provincia == "Tucuman" ~ "Tucumán",
+                               provincia == "Entre Rios" ~ "Entre Ríos",
+                               TRUE ~ provincia),
+         provincia = str_replace(provincia, "De", "de")) %>% 
+  group_by(provincia) %>% 
+  summarise(cantidad = n())
+```
+
+En línea con lo mencionado, al desagregar por provincia se observa que CABA y Buenos Aires encabezan el ranking de agencias, seguidas de Córdoba y Santa Fe.
+
+```{r agencias5, fig.cap=glue("Agencias de viajes habilitadas por provincia. Total país. Año {anio}."), fig.height=4}
+
+provincias %>% 
+ ggplot() +
+  geom_col(aes(reorder(provincia, cantidad), cantidad, fill = cantidad)) +
+  geom_text(aes(reorder(provincia, cantidad), cantidad, 
+                label = lbl_int(cantidad)),
+            hjust = -0.2, size = 2.5) +
+  scale_fill_dnmye(discrete = F) +
+  scale_y_continuous(expand = c(0,100)) +
+  labs(x="", y = "",
+       caption = md("**Fuente**: DNMyE en base a datos de la Dirección Nacional de Agencias de Viajes.")) +
+  coord_flip() +
+  theme_minimal() +
+  theme(legend.position = "none",
+        plot.caption = element_markdown())
+
+```
+
+
+```{r}
+no_declararon <- as.numeric(base_agencias %>% 
+  count(emisivo, interno_tipo_de_turismo, receptivo) %>% 
+  filter(emisivo == "No", 
+         interno_tipo_de_turismo == "No", 
+         receptivo == "No") %>% pull(n))
+
+modalidad <- base_agencias %>%
+  pivot_longer(emisivo:receptivo, names_to = "Tipo", values_to = "Aplica") %>% 
+  count(Tipo, Aplica) %>% 
+  mutate(porcentaje = n/nrow(base_agencias),
+         Tipo = str_replace(Tipo, "interno_tipo_de_turismo", "interno")) %>% 
+  filter(Aplica == "Si") %>% 
+  add_row(Tipo = "No especificado", Aplica = "Si", 
+          n = no_declararon, porcentaje = no_declararon/nrow(base_agencias))
+
+max_tipo <- modalidad %>% 
+  filter(porcentaje == max(porcentaje)) %>% 
+  pull(Tipo)
+max_cat_tipo <- modalidad %>% 
+  filter(porcentaje == max(porcentaje)) %>% 
+  pull(porcentaje) %>% lbl_percent()
+```
+
+## Tipos de turismo y mercados operados
+
+Al clasificar a las agencias por tipo de turismo que realizan, se encuentra que la mayoría opera turismo `r max_tipo` (`r max_cat_tipo`). Cabe aclarar que, en este caso, las categorías no son excluyentes entre sí, es decir, que una misma agencia puede hacer turismo emisivo, interno y receptivo.
+
+```{r agencias51, fig.cap=glue("Agencias de viajes habilitadas según tipo de turismo. Año {anio}.")}
+
+modalidad %>% 
+  mutate(Tipo = str_to_title(Tipo)) %>% 
+  ggplot(aes(reorder(Tipo, porcentaje), porcentaje)) +
+  geom_col(fill = dnmye_colores("cian")) +
+    geom_label(aes(label = lbl_percent(porcentaje)),
+               hjust = -0.2, size = 2.5) +
+  labs(title = "", x = "", y = "",
+       caption = md("**Fuente**: DNMyE en base a datos de la Dirección Nacional de Agencias de Viajes.")) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 0.9)) +
+  coord_flip() +
+  theme_minimal() +
+  theme(plot.caption = element_markdown())
+```
+
+```{r}
+mixtas <- sum( base_agencias$receptivo == "Si" & base_agencias$emisivo == "Si", na.rm = T)
+emisivas <- sum( base_agencias$receptivo == "No" & base_agencias$emisivo == "Si", na.rm = T)
+receptivas <- sum( base_agencias$receptivo == "Si" & base_agencias$emisivo == "No", na.rm = T)
+internacional <- mixtas + emisivas + receptivas
+
+modalidad_unica <- base_agencias %>%
+    summarise( 
+            receptivas = sum(emisivo == "No" & receptivo == "Si", na.rm = T),
+            "receptivo-emisivas" = sum(emisivo == "Si" & receptivo == "Si", na.rm =T),
+            emisivas = sum(emisivo == "Si" & receptivo == "No", na.rm = T)
+            ) %>% 
+  pivot_longer(cols = everything(), names_to = "Tipo", values_to = "cantidad") %>% 
+  mutate(porcentaje = cantidad/internacional)
+```
+
+Al poner el foco en aquellas agencias que operan turismo internacional (`r lbl_int(internacional)`), se puede analizar la distribución para cada categoría, es decir, cuántas operan solo receptivo, solo emisivo o ambas. 
+
+Como se visualiza en el siguiente gráfico, existe una mayor proporción de agencias dedicadas únicamente al turismo emisivo.
+
+```{r agencias50, fig.cap=glue("Agencias de viajes habilitadas que operan turismo internacional según modalidad. Año {anio}.")}
+
+modalidad_unica %>% 
+  #filter(Tipo != "No especificado") %>% 
+  ggplot(aes(x = reorder(Tipo, porcentaje), y  = porcentaje, label = lbl_percent(porcentaje))) +
+  # ggplot(aes(reorder(Tipo, porcentaje), porcentaje)) +
+  geom_col(fill = dnmye_colores("cian")) + 
+  geom_label(size = 2.5, hjust = -0.1) +
+  labs(x = "", y = "", 
+       caption = md("**Fuente**: DNMyE en base a datos de la Dirección Nacional de Agencias de Viajes.")) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 0.75)) +
+  scale_x_discrete(labels = ~ str_to_title(.x))+
+  coord_flip() +
+  theme_minimal() +
+  theme(plot.caption = element_markdown())
+```
+
+```{r}
+turismo_receptivo <- base_agencias %>% 
+  filter(receptivo=="Si") %>% 
+  select(bolivia:resto_del_mundo)
+
+no_declararon <- as.numeric(base_agencias %>% 
+  filter(receptivo=="Si") %>% 
+  count(bolivia, brasil_general, chile, paraguay, uruguay, ee_uu_y_canada,
+        resto_de_america, europa, china, resto_del_mundo) %>% 
+  filter(if_all(bolivia:resto_del_mundo, ~ . == "No")) %>% 
+  pull(n) %>% unique())
+
+declararon <- nrow(turismo_receptivo)-no_declararon
+
+no_declararon <- no_declararon/nrow(turismo_receptivo)
+
+receptivo <- turismo_receptivo %>%
+  pivot_longer(bolivia:resto_del_mundo,  names_to = "Tipo", values_to = "Aplica") %>% 
+  count(Tipo, Aplica) %>%
+  filter(Aplica == "Si") %>% 
+  mutate(porcentaje = n/declararon,
+         Tipo = str_to_title(Tipo),
+         Tipo = case_when(Tipo == "Brasil_general" ~ "Brasil",
+                          Tipo == "Resto_del_mundo" ~ "Resto del mundo",
+                          Tipo == "Ee_uu_y_canada" ~ "EE.UU. y Canadá",
+                          Tipo == "Resto_de_america" ~ "Resto de América",
+                          TRUE ~ Tipo))
+
+mercado_text <- receptivo %>% 
+  arrange(desc(porcentaje))
+
+max_merc <- mercado_text %>% 
+  slice(1) %>% 
+  pull(porcentaje) %>% lbl_percent()
+cat_max_merc <- mercado_text %>% 
+  slice(1) %>% pull(Tipo)
+
+seg_merc <- mercado_text %>% 
+  slice(2) %>% 
+  pull(porcentaje) %>% lbl_percent()
+cat_seg_merc <- mercado_text %>% 
+  slice(2) %>% pull(Tipo)
+
+ter_merc <- mercado_text %>% 
+  slice(3) %>% 
+  pull(porcentaje) %>% lbl_percent()
+cat_ter_merc <- mercado_text %>% 
+  slice(3) %>% pull(Tipo)
+```
+
+En cuanto a la distribución de agencias receptivas según región que operan, se observa que **`r cat_max_merc`** encabeza el ranking con un `r max_merc`, seguida de **`r cat_seg_merc`** (`r seg_merc`) y **`r cat_ter_merc`** (`r ter_merc`).
+
+```{r agencias52, fig.cap=glue("Agencias de viajes habilitadas que operan turismo receptivo según mercado. Año {anio}.")}
+
+receptivo %>% 
+  ggplot(aes(reorder(Tipo, porcentaje), porcentaje)) +
+  geom_col(fill = dnmye_colores("cian")) +
+  geom_label(aes(label = lbl_percent(porcentaje)),
+               hjust = -0.2, size = 2.5) +
+  labs(title = "", x = "", y = "",
+       caption = md("**Fuente**: DNMyE en base a datos de la Dirección Nacional de Agencias de Viajes.")) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 0.75)) +
+  coord_flip() +
+  theme_minimal() +
+  theme(plot.caption = element_markdown())
+```
+
+**TURISMO ESTUDIANTIL:**
+
+En cuanto al segmento de turismo estudiantil, del total de agencias registradas, un 4,4% declaró operar con este mercado (225). Esto representa una disminución del 26,9% respecto del año 2015.
+
+```{r}
+# Turismo estudiantil
+agencias_te <- base_agencias %>% 
+  filter(realiza_turismo_estudiantil == "Si") %>% 
+  summarise(anio = 2021,
+            agencias = n(),
+            var_agencias = NA_integer_)
+
+agencias_te_serie <- read_file_srv("/srv/DataDNMYE/agencias/anuario/agencias_estudiantil_2007-2015.csv") %>% 
+  select(1,2,3) %>% 
+  mutate(var_agencias = as.numeric(str_replace(var_agencias, ",", ".")))
+
+tabla_te <- rbind(agencias_te_serie, agencias_te)
+```
+
+
+```{r agencias6}
+
+tabla_3 <- tabla_te %>% 
+  gt() %>% 
+  cols_label(anio = "Año",
+             agencias = "Agenicas habilitadas",
+             var_agencias = "Var i.a. %") %>%
+  sub_missing(columns = everything(),  missing_text = "-") %>% 
+  cols_align("center") %>% 
+  tab_footnote("Nota: no se cuenta con datos del Registro de Agencias de Viajes para el período 2016-2020") %>% 
+  tab_footnote(md("**Fuente**: DNMyE en base a datos de la Dirección Nacional de Agencias de Viajes.")) %>% 
+  fmt_percent(columns = var_agencias, decimals = 1, dec_mark = ",") %>% 
+  tab_options(column_labels.font.weight = "bold") %>% 
+  tab_caption(glue("Agencias de turismo estudiantil habilitadas. Total país. Años 2004-2015/{anio}."))
+
+tabla_3
+```
+
+```{r}
+turismo_estudiantil <- base_agencias %>% 
+  select(realiza_turismo_estudiantil:externo) %>% 
+  filter(realiza_turismo_estudiantil=="Si")
+
+turismo_estudiantil_tb1 <- turismo_estudiantil %>%
+  count(organizadora) %>% 
+  filter(organizadora=="Si")%>% 
+  rename(tipo = 1) %>% 
+  mutate(tipo = "organizadora")
+
+turismo_estudiantil_tb2 <- turismo_estudiantil %>%
+  count(comercializadora) %>% 
+  filter(comercializadora=="Si") %>% 
+  rename(tipo = 1) %>% 
+  mutate(tipo = "comercializadora")
+
+turismo_estudiantil_tb <- rbind(turismo_estudiantil_tb1,turismo_estudiantil_tb2) %>% 
+  mutate(n = n/nrow(turismo_estudiantil))
+
+te_tb <- turismo_estudiantil %>%
+  pivot_longer(viaje_de_estudios:externo, names_to = "Tipo", values_to = "Aplica") %>%
+  count(Tipo, Aplica) %>% 
+  mutate(porcentaje = n/nrow(turismo_estudiantil)) %>% 
+  filter(Aplica == "Si") %>% 
+  mutate(categoria = case_when(Tipo == "externo" ~ "Tipo de turismo",
+                          Tipo == "interno_estudiantil" ~ "Tipo de turismo",
+                          Tipo == "viaje_de_egresados" ~ "Tipo de viaje",
+                          Tipo == "viaje_de_estudios" ~ "Tipo de viaje"),
+         Tipo = case_when(Tipo == "externo" ~ "Externo",
+                          Tipo == "interno_estudiantil" ~ "Interno",
+                          Tipo == "viaje_de_egresados" ~ "Viaje de egresados",
+                          Tipo == "viaje_de_estudios" ~ "Viaje de estudios"))
+```
+
+En relación al tipo de turismo y de viajes ofrecidos, del total de agencias de viajes estudiantiles un 96,4% opera con destinos nacionales, mientras que un 17,3% comercializa viajes al exterior. Por otra parte, un 79,6% organiza o comercializa viajes de estudios, mientras que un 65,8% distribuye viajes de egresados.
+
+```{r}
+te_tb %>% 
+  ggplot(aes(Tipo,porcentaje)) +
+  geom_col(fill = dnmye_colores("cian")) +
+  geom_label(aes(label = lbl_percent(porcentaje)),
+               hjust = -0.2, size = 2.5) +
+  labs(title = "", x = "", y = "",
+       caption = md("**Fuente**: DNMyE en base a datos de la Dirección Nacional de Agencias de Viajes.")) +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent, expand = expansion(mult = c(0,.4))) +
+  facet_wrap(~ categoria, scales = "free") +
+  theme_minimal()+
+  theme(plot.caption = element_markdown())
+
+```
+
+Por último, el registro de agencias de turismo estudiantil permite conocer el ranking de destinos operados por este segmento, el cual se encuentra encabezado por Villa Carlos Paz, San Carlos de Bariloche y CABA.
+
+```{r agencias7, fig.cap=glue("Turismo Estudiantil. Agencias de viajes por destinos operados. \nTop 15 destinos. Año {anio}."), fig.height=4}
+
+#Gráfico de destinos
+destinos_te <- read_file_srv("/srv/DataDNMYE/agencias/rlm/destinos_te.rds")
+
+destinos_te %>% 
+  head(15) %>% 
+  mutate(destinos = str_to_title(destinos),
+         destinos = case_when(destinos == "Tucuman" ~ "Tucumán",
+                              destinos == "Buenos Aires" ~ "CABA",
+                              destinos == "Puerto Iguazu" ~ "Puerto Iguazú",
+                              destinos == "Mar Del Plata" ~ "Mar del Plata",
+                              TRUE ~ destinos),
+                  destinos = fct_reorder(destinos, n),) %>% 
+  rename(Destino = destinos, Cantidad = n) %>% 
+  ggplot() +
+  geom_col(aes(Destino, Cantidad), fill = dnmye_colores("purpura")) +
+  geom_label(aes(Destino, Cantidad, 
+                label = lbl_int(Cantidad)),
+            hjust = -0.3, size = 2.5) +
+  labs(x = "", y = "",
+       caption = md("**Fuente**: DNMyE en base a datos de la Dirección Nacional de Agencias de Viajes.")) +
+  coord_flip(clip="off") +
+  theme(text = element_text(size = 20)) +
+  theme_minimal() +
+  theme(plot.caption = element_markdown())
+```
+
+
+## Recursos disponibles
+
+Los datos que se muestran en este capítulo forman parte del Sistema de Información Turística de la Argentina (SINTA) <https://www.yvera.tur.ar/sinta/>{target="_blank"} de la Dirección Nacional de Mercados y Estadística (DNMyE). Los mismos se presentan a través de distintos formatos:
+
+-   [Reporte:](https://tableros.yvera.tur.ar/agencias/){target="_blank"} Reporte de actualización **anual** con la información más destacada del sector de agencias de viajes.
+
+-   [Documento de trabajo:](https://tableros.yvera.tur.ar/recursos/biblioteca/agencias.pdf){target="_blank"} Informe que caracteriza el sector de agencias de viajes en relación a su distribución geográfica y el tipo de turismo con el que operan.

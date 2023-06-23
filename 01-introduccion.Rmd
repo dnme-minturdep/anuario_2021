@@ -1,0 +1,314 @@
+---
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r include=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.topcaption=TRUE)
+
+knitr::knit_hooks$set(inline = function(x) {   
+  if(!is.numeric(x)){x}
+  else{prettyNum(x, big.mark=".",decimal.mark = ",")}}) # Para que los separadores de miles sean punto.
+library(glue)
+library(tidyverse)
+library(ggtext)
+library(herramientas)
+library(comunicacion)
+library(lubridate)
+
+anio_actual <- 2021
+```
+# **Introducción** {-}
+
+La Dirección Nacional de Mercados y Estadística (DNMyE) de la Subsecretaría de Desarrollo Estratégico del Ministerio de Turismo y Deportes tiene como misión principal llevar adelante las acciones conducentes a la captación, procesamiento y elaboración de información estadística referida al turismo receptivo, interno y emisivo, y a la oferta de actividades características del turismo, en el marco del sistema estadístico nacional, con especial atención en la implementación de la cuenta satélite de turismo. 
+
+Uno de los hitos históricamente relevantes entre estas acciones fue la confección de un informe anual estadístico del turismo en Argentina, bautizado como Anuario Estadístico de Turismo (AET), el cual se [publicó para los años 2005 - 2015](https://biblioteca.yvera.tur.ar/){target="_blank"}. 
+
+Con el presente documento se retoma la publicación del AET en lo que consideramos su "segunda época". A tono con los nuevos flujos de trabajo implementados en la DNMyE, esta nueva entrega contiene una novedad: gracias a la publicación del código fuente utilizado en la elaboración, su formato será completamente reproducible, lo que permitirá su uso para futuras ediciones y facilitará su actualización año a año. 
+
+El trabajo aquí condensado es el resultado de una intensa labor de procesamiento, sistematización, limpieza y curaduría de múltiples fuentes de datos (desde los tradicionales operativos que resultan en las estadísticas básicas de turismo hasta una multiplicidad de registros administrativos y fuentes de otras organizaciones) en la que intervino la DNMyE y que, además, nutre al [Sistema de Información Turística de la Argentina (SINTA)](https://www.yvera.tur.ar/sinta/){target="_blank"}: un conjunto de herramientas y plataformas que facilitan el acceso a datos e información turística de Argentina.
+
+Las estadísticas del AET 2021 dan cuenta de una etapa históricamente anómala. Reflejan el shock ocasionado por la pandemia COVID-19 y la profunda caída que provocó en la actividad del sector turístico en 2020 y 2021, tanto en Argentina como en el mundo.
+
+A nivel mundial, las llegadas de turistas internacionales en los años 2020 y 2021 estuvieron 72,1% y 68,9% por debajo de 2019, respectivamente, mientras que los ingresos económicos por turismo internacional cayeron 62,6% en 2020 y 57,4% en 2021 frente a 2019. En Argentina, el turismo interno retrocedió un 54% en 2020 y 33% en 2021 respecto de 2019. El turismo receptivo recibió un impacto aún más profundo: en 2020 cayeron 72% los viajes de turistas no residentes respecto del año anterior, mientras que en 2021 su nivel fue prácticamente nulo, con una caída del 96%, también con respecto a 2019. 
+
+Desde fines de 2021 es posible distinguir la reactivación del turismo interno, seguida de una fuerte recuperación. En 2022 alcanzó el nivel más alto desde por lo menos 2012, con 31 millones de turistas provenientes de grandes aglomerados[^evyth]. Este fenómeno se observó también en la ocupación hotelera: las estimaciones de pernoctaciones de viajeros residentes alcanzaron el máximo valor (42 millones) desde que inició la medición, en 2004. La cantidad de viajeros hospedados en 2022 (16,3 millones), en tanto, fue solo superada por la del año 2017 (16,8 millones)[^eoh]. La actividad aerocomercial en vuelos de cabotaje había caído un 63% en 2021 respecto de 2019. La recuperación del turismo interno llevó a que, a partir de marzo de 2023, los pasajeros transportados en vuelos de cabotaje superaran los valores prepandemia[^aereo].
+
+[^evyth]: Las estadísticas de turismo interno, para los habitantes de los 31 grandes aglomerados urbanos -donde reside alrededor del 63% del país- que releva la EVyTH, pueden consultarse como [informes](https://www.yvera.tur.ar/sinta/informe/info/encuesta-de-viajes-y-turismo-de-los-hogares-evyth), [reportes](https://tableros.yvera.tur.ar/interno.html) o [datos abiertos](https://datos.yvera.gob.ar/dataset/encuesta-viajes-turismo-hogares-evyth)
+
+[^eoh]: Los datos de ocupación hotelera, provenientes de la EOH pueden consultarse en formato [informe](https://www.yvera.tur.ar/sinta/informe/info/encuesta-de-ocupacion-hotelera-eoh) [reporte](https://tableros.yvera.tur.ar/eoh.html) y [datos abiertos](https://datos.yvera.gob.ar/dataset/encuesta-ocupacion-hotelera-parahotelera-eoh)
+
+[^aereo]: La información de transporte aéreo de pasajeros, a partir de información de la ANAC está disponible como [tablero interactivo](https://tableros.yvera.tur.ar/conectividad/) y como [reporte](https://tableros.yvera.tur.ar/conectividad.html)
+
+<br>
+
+```{r}
+data_serie_turismo_interno <- read_file_srv("/srv/DataDNMYE/imet/serie_evyth.csv")
+
+# DATOS GRAFICO
+data_grafico_turismo_interno <- data_serie_turismo_interno %>% 
+  filter(!(anio == 2023 & trimestre == 2)) %>% 
+  select(anio, tur) %>% 
+  group_by(anio) %>% 
+  summarise(turistas_anio = sum(tur)) %>% 
+  ungroup() 
+#mutate(anio = ifelse(anio == 2022,"2022 (1er. trim.)",anio))
+data_grafico_turismo_acum <- data_serie_turismo_interno %>% 
+ filter(!(anio == 2023 & trimestre == 2)) %>% 
+  select(trimestre,anio, tur) %>% 
+  filter(trimestre <=  tail(.,1) %>% pull(trimestre)) %>% 
+  group_by(anio) %>% 
+  summarise(turistas = sum(tur)) %>% 
+  ungroup() 
+# GRAFICO
+grafico_turismo_interno <- data_grafico_turismo_interno %>% 
+  #filter(indicador=="turistas") %>% 
+  ggplot(aes(x = anio, y = turistas_anio)) + 
+  geom_col(fill=dnmye_colores(7),alpha=.5) +
+  geom_col(data=data_grafico_turismo_acum,aes(x=anio,y=turistas),width=.7,alpha=1,fill=dnmye_colores(5))+
+  # scale_fill_manual(values = c("turistas" = cols_arg, 
+  #                              "acum" = dnmye_colores(5)[2])) +
+  geom_text(data=data_grafico_turismo_acum,
+            aes(x = anio, y = turistas, label = format(round(turistas/1e+6,1),decimal.mark=",",big.mark=".")), color = dnmye_colores(5),
+            size = 5,  
+            fontface = "bold",
+            vjust = -0.25,
+            #family = familia_fuente
+  ) +
+  geom_text(aes(x = anio, y = turistas_anio, label = format(round(turistas_anio/1e+6,1),decimal.mark=",",big.mark=".")), color = dnmye_colores(7),
+            size = 5,  
+            fontface = "bold",
+            vjust = -0.25,
+            #family = familia_fuente
+  ) +
+  theme_minimal() +
+  theme(
+    #text = element_text(family = familia_fuente), 
+    plot.title    = element_markdown(size = 14),
+    plot.subtitle = element_markdown(size = 12),
+    plot.caption  = element_markdown(size = 12),
+    strip.text.y  = element_text(size = 10, face = "bold"),
+    axis.text.x   = element_text(size = 10),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  )+
+  scale_x_continuous(breaks=c(2012:2023),
+                     labels=c(2012:2023))+
+  scale_y_continuous(labels = scales::number_format(scale=1/1e+6))+
+  coord_cartesian(clip="off")+
+  labs(title = "**Turistas internos**",
+       subtitle = glue("En millones. Turistas provenientes de grandes aglomerados urbanos. <br> <span style='color:{dnmye_colores(7)}'>Anual</span> y <span style='color:{dnmye_colores(5)}'>1° trimestre</span>"),
+       caption = "Fuente: DNMyE en base a Encuesta de Viajes y Turismo de los Hogares.",
+       x = "", y = "")
+
+grafico_turismo_interno
+```
+
+El comienzo del año 2023 muestra una evolución tendiente a la normalización: mientras que las pernoctaciones y viajeros residentes estuvieron por debajo del año 2022 (6% y 1% respectivamente), las mismas estimaciones para viajeros no residentes tuvieron un nivel del 263% y 274% superior. Esto resultó en un incremento interanual del 6% del total de pernoctaciones y del 16% de los viajeros. Por otra parte, en los primeros meses del año, los viajes de turistas internacionales retornaron a los niveles previos a la pandemia[^TI].
+
+[^TI]: Pueden consultarse las estadísticas de turismo internacional en formato [tablero interactivo](https://tableros.yvera.tur.ar/turismo_internacional/), [informe](https://www.yvera.tur.ar/sinta/informe/info/turismo-internacional) y  [reporte](https://tableros.yvera.tur.ar/internacional.html).
+
+<br>
+
+```{r}
+anio_incompleto <-  2023
+trim_incompleto <- "1er"
+turismo_internacional_vias <- read_file_srv("/srv/DataDNMYE/imet/serie_ti_vias.csv")
+
+data_grafico_turismo_internacional <-  turismo_internacional_vias %>%
+  #filter(year >=2018 ) %>% 
+  pivot_longer(cols = c(3:length(.)), names_to = "indicador", values_to = "n")  %>%
+  filter(str_detect(string = indicador, pattern = "total", negate = T)) %>%
+  mutate(direccion = case_when(str_detect(indicador, "emisivo") ~ "emisivo", T ~ "receptivo"), 
+         month = str_pad(month, 2, "left", 0), 
+         period = ymd(as.character(glue::glue("{year}/{month}/01")))) %>% 
+  select(- c(year, month, indicador)) %>% 
+  group_by(direccion, period) %>% 
+  summarise(n = sum(n), .groups = "drop") %>%
+  pivot_wider(names_from = "direccion", 
+              values_from = "n") %>% 
+  mutate(balanza = receptivo - emisivo, 
+         balanza_color = case_when(balanza > 0 ~ "superavit", TRUE ~ "deficit"),
+         across(where(is.numeric), .fns = ~ ./1000000),
+         anio = year(period))  %>% 
+  group_by(anio) %>%
+  summarise(emisivo = sum(emisivo),
+            receptivo = sum(receptivo)) %>% 
+  pivot_longer(cols=c("emisivo","receptivo"),values_to = "val",names_to = "var") %>% 
+  mutate(anio_color= ifelse(anio == anio_incompleto,"acum","anio"),
+         var = str_to_title(var)) %>% 
+  ungroup()
+
+data_grafico_turismo_internacional_acum <- turismo_internacional_vias %>%
+  #filter(year >=2018 ) %>% 
+  pivot_longer(cols = c(3:length(.)), names_to = "indicador", values_to = "n")  %>%
+  filter(str_detect(string = indicador, pattern = "total", negate = T)) %>%
+  mutate(direccion = case_when(str_detect(indicador, "emisivo") ~ "emisivo", T ~ "receptivo"), 
+         month = str_pad(month, 2, "left", 0), 
+         period = ymd(as.character(glue::glue("{year}/{month}/01")))) %>% 
+  select(- c(year, month, indicador)) %>% 
+  group_by(direccion, period) %>% 
+  summarise(n = sum(n), .groups = "drop") %>%
+  pivot_wider(names_from = "direccion", 
+              values_from = "n") %>% 
+  mutate(balanza = receptivo - emisivo, 
+         balanza_color = case_when(balanza > 0 ~ "superavit", TRUE ~ "deficit"),
+         across(where(is.numeric), .fns = ~ ./1000000),
+         anio = year(period)) %>% 
+  filter(month(period) <=  tail(turismo_internacional_vias %>% pull(month),1)) %>%
+  pivot_longer(cols=c("emisivo","receptivo"),values_to = "val",names_to = "var") %>% 
+  group_by(anio,var) %>% 
+  summarise(val = sum(val)) %>% 
+  ungroup() %>% 
+  mutate(var = str_to_title(var))
+
+grafico_turismo_internacional <-  data_grafico_turismo_internacional %>% 
+  # mutate(anio = ifelse(anio == anio_incompleto,paste0(anio_incompleto,"\n(hasta ",month(last(turismo_internacional_vias$month),label = T),".)"),anio)) %>% 
+  ggplot(aes(x = anio, y = val)) +
+  geom_col(position = "dodge",
+           alpha=.5,
+           fill=dnmye_colores(5))+
+  geom_col(data = data_grafico_turismo_internacional_acum,
+           aes(x=anio,y=val,group=var),position = "dodge",
+           alpha=1, width =.7,
+           fill = dnmye_colores(1))+
+  # scale_fill_manual(values = c("emisivo" = dnmye_colores(1), 
+  #                              "receptivo" = dnmye_colores(5)),
+  #                   name="",
+  #                   labels=c("Emisivo","Receptivo")) +
+  # scale_alpha_manual(values = c("anio"=1,
+  #                               "acum"=.5),guide="none")+
+  geom_text(data = data_grafico_turismo_internacional_acum%>% 
+              filter(anio<2023),
+            aes(x =anio, y = val, label = format(round(val,1),decimal.mark=",",big.mark=".")),
+            size = 4,  
+            fontface = "bold",
+            color = dnmye_colores(1),
+            hjust=0,
+            #family = familia_fuente
+            position=position_dodge(width = 0.9)
+  ) +
+  geom_text(aes(x =anio, y = val, label = format(round(val,1),decimal.mark=",",big.mark=".")),
+            size = 4,  
+            fontface = "bold",
+            color = dnmye_colores(5),
+            hjust=-.8,
+            #family = familia_fuente
+            position=position_dodge(width = 0.9)
+  ) +
+  scale_color_manual(values = c("emisivo" = dnmye_colores(1), 
+                                "receptivo" = dnmye_colores(5)),guide = "none")+
+  scale_x_continuous(breaks=c(2012:2023),
+                     labels=c(2012:2023))+
+  coord_flip(clip = "off")+
+  facet_wrap(~var)+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = familia_fuente), 
+    plot.title    = element_markdown(size = 14),
+    plot.subtitle = element_markdown(size = 12),
+    plot.caption  = element_markdown(size = 8,hjust=0.1),
+    strip.text.x = element_text(size = 12, face = "bold"),
+    strip.text.y  = element_text(size = 12, face = "bold"),
+    axis.text.x   = element_text(size = 10),
+    axis.text.y   = element_text(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  )+
+  labs(title = "**Viajes de turistas internacionales**",
+       subtitle = glue("En millones.<span style='color:{dnmye_colores(5)}'>**Total anual**</span> y <span style='color:{dnmye_colores(1)}'>**Acumulado a {format(as.Date(paste0(last(turismo_internacional_vias$year),'-',last(turismo_internacional_vias$month),'-01')),'%B')}**</span>"),
+       caption = "Fuente: DNMyE en base a Dirección Nacional de Migraciones y Encuesta de Turismo Internacional (INDEC y DNMyE)",
+       x = "", y = "")
+
+grafico_turismo_internacional
+```
+
+Estas fases de caída, recuperación y crecimiento no son meras fluctuaciones sino que se dan en el marco de un profundo cambio estructural que ha planteado la crisis al sector. La relevancia de retomar la publicación del AET con una base más amplia de datos y estadísticas del turismo abre la oportunidad de profundizar en el estudio y conocimiento de este proceso y avanzar en el diseño de políticas públicas que orienten los cambios hacia un turismo más sostenible, inclusivo y resiliente, cuyos beneficios se repartan extensamente en todo el territorio.
+
+Además de la evolución de los volúmenes de turistas y gasto, cada capítulo del presente anuario permitirá ahondar en la dinámica y comportamiento de múltiples variables e indicadores turísticos antes y durante la pandemia. El trabajo consta de ocho capítulos: en el capítulo \@ref(turismo-mundo) se exponen los principales números del turismo a nivel mundial a partir de la compilación de estadísticas de la Organización Mundial del Turismo (OMT). El capítulo \@ref(turismo-internacional) presenta las estadísticas de llegadas de turistas desde el exterior y las salidas desde nuestro país, así como los ingresos y egresos económicos por esta actividad, basándose en información de la Encuesta de Turismo Internacional (ETI), la Dirección Nacional de Migraciones (DNM) y las estadísticas de Balanza de Pagos (INDEC). El capítulo \@ref(turismo-interno) refleja la actividad de los turistas argentinos dentro de nuestro país, tomando como fuente a la Encuesta de Viajes y Turismo de los Hogares (EVyTH) . El capítulo \@ref(alojamiento-turistico) está dedicado al análisis del alojamiento turístico en Argentina utilizando como fuente de datos al Padrón Único Nacional de Alojamiento (PUNA) y a la Encuesta de Ocupación Hotelera (EOH). En el capítulo \@ref(parques-nacionales) se incluyen datos sobre las visitas a Parques Nacionales del país, en base a información de la Administración de Parques Nacionales. El capítulo \@ref(transporte-aereo) provee información correspondiente al transporte aéreo de cabotaje e internacional de nuestro país en base a los datos de vuelos comerciales obtenidos de la Administración Nacional de Aviación Civil (ANAC). El capítulo \@ref(agencias) está destinado a la caracterización y análisis de las agencias de viajes habilitadas en el país, con datos del Registro de Agencias de Viajes de la Dirección Nacional de Agencias de Viajes. El capítulo \@ref(indicadores-economicos) contiene una serie de indicadores económicos, construidos a partir de recomendaciones de la OMT y de la Comisión Económica para América Latina y el Caribe (CEPAL), que permiten ponderar la importancia de la actividad turística en la economía del país y en la de otros países de la región. Finalmente, el capítulo \@ref(empleo) presenta datos de empleo en el sector utilizando dos fuentes de información complementarias (EOH y Centro de Estudios para la Producción - CEP XXI).
+
+Más allá del análisis cuantitativo que el anuario permite hacer del sector, es importante destacar el rol estratégico que ocupa el turismo para la construcción de una economía más federal, con mayores niveles de actividad económica y empleo y con mayores ingresos de divisas dadas sus características: actividad intensiva en mano de obra, con múltiples conexiones directas o indirectas con diversos sectores productivos, muy federal. Se destaca también su contribución a la economía en su conjunto: de acuerdo a la CST-A, en 2019 el sector en Argentina representó el 4,9% del Valor Agregado Bruto (VAB), el 6% del empleo total y el 7% de las exportaciones de bienes y servicios.
+
+Para propiciar su desarrollo el sector cuenta con una serie de desafíos a superar: una elevada concentración de la actividad en pocos destinos, alta estacionalidad, nivel alto de informalidad en el empleo de algunos de sus rubros, el carácter deficitario  del turismo internacional.
+
+Para abordar estos desafíos es necesaria una mirada integral del territorio, como ámbito que organiza y estructura el funcionamiento del sector, que pueda identificar el desarrollo hasta ahora alcanzado, el potencial con el que cuenta a partir del patrimonio natural, cultural, social y productivo de las distintas regiones y destinos.
+
+El Ministerio de Turismo y Deportes ha estado llevando adelante acciones de promoción y desarrollo que persiguen criterios de sustentabilidad, desarrollo equilibrado del espacio turístico nacional y respetuoso del ambiente natural y de la cultura, la identidad y los valores de las comunidades anfitrionas, propiciando la generación y distribución equilibrada de la renta turística interna y de los excedentes económicos internacionales generados por el turismo receptivo a través de un mayor gasto turístico, creando oportunidades de desarrollo económico y social y contribuyendo a lograr una mayor calidad de vida para los habitantes.
+
+A principios de 2020, la irrupción de la pandemia COVID-19 sumó nuevos desafíos en materia de políticas de impulso. Aquí, entre la batería de medidas de asistencia lanzadas durante la crisis sanitaria, se destacaron inicialmente los programas de rescate [FACT](https://www.argentina.gob.ar/turismoydeportes/fact2){target="_blank"} y [APTUR](https://www.argentina.gob.ar/turismoydeportes/aptur) –que brindaron capacitación y apoyo para la recuperación productiva y del empleo del sector–, y el [Programa de Asistencia al Trabajo y la Producción (ATP)](https://www.argentina.gob.ar/economia/politicatributaria/covid19/trabajoyproduccion){target="_blank"} que, si bien fue transversal a múltiples sectores, fue de vital ayuda para el sostenimiento de las capacidades empresariales turísticas, en un contexto de facturación virtualmente nula. Estas iniciativas precedieron el principal programa de expansión y sostenimiento de la demanda implementado durante la pandemia, [PreViaje](https://previaje.gob.ar/){target="_blank"}. Con cuatro ediciones, el programa de preventa turística permitió sostener la temporada (PreViaje 1, lanzado a fines de 2020 para la temporada 2021) e impulsar la reactivación del sector, que alcanzó un récord de turismo interno (PreViaje 2, iniciado en 2021 para promocionar el turismo en la última fase de ese año y en 2022). Finalmente, Previaje 3 y 4 (para viajes en octubre y noviembre 2022 y entre fines de mayo y junio de 2023, respectivamente) tuvieron como objetivo suavizar la estacionalidad de la demanda característica del sector. En sus cuatro ediciones contó con siete millones de turistas beneficiados, más de 12.000 prestadores inscriptos y un impacto económico cercano a los $250.000 millones.
+
+En paralelo a las medidas implementadas para la recuperación del sector en pandemia, el Ministerio de Turismo y Deportes diseñó una estrategia integral de desarrollo y promoción que propone una organización de la oferta turística en todo el país con el objetivo de redistribuir los flujos, elevar la estadía y aumentar el gasto turístico. Así es como [La Ruta Natural](https://larutanatural.gob.ar/){target="_blank"}, lanzada en 2022, toma al turismo de naturaleza como eje vector de la planificación para el desarrollo territorial y convierte este ordenamiento en el punto de partida ideal para la definición y organización de políticas transversales, que tienen entre las de mayor relevancia a las vinculadas a la promoción y comunicación de todos los destinos del país, el desarrollo de infraestructura de uso turístico y la mejora de servicios. 
+
+En el marco del Plan Nacional de Inversiones Turísticas y teniendo como meta posicionar a Argentina como destino turístico de relevancia internacional, en 2020 se lanzó 50 Destinos, iniciativa destinada a financiar obras de infraestructura turística en todo el país con el objetivo de dinamizar la actividad, fortalecer y ampliar la oferta turística, consolidar los destinos y fomentar la competitividad sectorial. Como complemento, la Ruta Natural sumó financiamiento del BID para el desarrollo de preinversión y ejecución de obras de infraestructura de uso turístico en todo el país.
+
+La implementación del [Plan estratégico de Calidad y Formación](https://www.argentina.gob.ar/turismoydeportes/capacitate/turismo) que lleva a cabo la cartera nacional de Turismo y Deportes, articulando con otros organismos, es una política prioritaria para la gestión. En el período 2020 – 2022 se alcanzó un total de 420.000 personas con formación para mejorar la competitividad del Sector, fortalecer los destinos turísticos e incorporar nuevas herramientas de trabajo, y se terminará la gestión con 600.000 personas capacitadas.
+
+Se suman a estas medidas el conjunto de herramientas contenidas en el [Sistema Argentino de Calidad Turística (SACT)](https://www.argentina.gob.ar/turismoydeportes/sistema-argentino-de-calidad-turistica){target="_blank"}, que busca promover la cultura de la calidad y la mejora continua entre los actores que conforman la cadena de valor turística, y el [Sistema de Información Turística de la Argentina (SINTA)](https://www.yvera.tur.ar/sinta/){target="_blank"} dentro de las líneas de acción orientadas a la transformación digital de la actividad turística. 
+ 
+En esta línea, cabe destacar que, en el marco de las estadísticas oficiales de nuestro país, [se presentó la primera estimación de una Cuenta Satélite de Turismo de Argentina (CST-A) con información de los años 2004 y 2016-2019](https://www.yvera.tur.ar/sinta/informe/info/cuenta-satelite-de-turismo){target="_blank"}, proyecto conjunto de colaboración entre la DNMyE-MINTURDEP y la Dirección Nacional de Cuentas Nacionales del Instituto Nacional de Estadística y Censos (DNCN-INDEC). Se trata del corolario de los años invertidos en el desarrollo del Sistema de Estadísticas de Turismo de la Argentina. 
+
+Adicionalmente, se encuentra en proceso de actualización la CST-A con los datos correspondientes al año 2019 -rectificación a partir del Cuadro de Oferta y Utilización (COU) publicado por INDEC para ese año- y, como novedad, se presentarán los datos estimados de 2020 (también utilizando la COU de dicho año) y los datos provisorios para los años 2021 y 2022. Esta nueva publicación, que estará disponible tentativamente para el segundo semestre del 2023, permitirá observar el severo impacto que tuvo en el sector la irrupción de la pandemia. 
+
+De cara al futuro, se dará impulso a iniciativas que permitan optimizar la calidad de los destinos, mejorar la gestión ambiental del turismo, desarrollar infraestructura y profesionalizar el sector mediante el apoyo y asistencia a prestadores/as y emprendimientos y otras acciones tendientes a acompañar el desarrollo productivo en economías regionales para asegurar la generación de destinos y productos crecientemente competitivos. Se enmarcan entre estas iniciativas medidas que fomenten la vinculación del turismo con otros sectores productivos y que promuevan la digitalización del sector.
+
+## Siglas y Acrónimos Utilizados {-}
+
+**AP**: Agencia de pasajes
+
+**ANAC**: Administración Nacional de Aviación Civil 
+
+**APN**: Administración de Parques Nacionales
+
+**AT**: Agencia de turismo
+
+**CABA**: Ciudad Autónoma de Buenos Aires
+
+**CEPAL**: Comisión Económica para América Latina y el Caribe
+
+**CST-A**: Cuenta Satélite de Turismo de Argentina
+
+**DNM**: Dirección Nacional de Migraciones
+
+**DNESEyCI**: Dirección Nacional de Estadísticas del Sector Externo y Cuentas Internacionales
+
+**EOH**: Encuesta de Ocupación Hotelera
+
+**ESFL**: Empresa sin fines de lucro
+
+**ETI**: Encuesta de Turismo Internacional
+
+**EVT**: Empresa de viajes y turismo
+
+**EVyTH**: Encuesta de Viajes y Turismo de los Hogares
+
+**INDEC**: Instituto Nacional de Estadística y Censos
+
+**OMT**: Organización Mundial del Turismo
+
+**PIB**: Producto Interno Bruto
+
+**PN**: Parque Nacional
+
+**RCT**: Ramas Características del Turismo
+
+**SIPA**: Sistema Integrado Previsional Argentino
+
+**TOP**: Tasa de ocupación de plazas
+
+**\$**: Peso (Moneda nacional)
+
+**US\$**: Dólares estadounidenses
+
+## Signos Utilizados {-}
+
+**///** Dato que no corresponde presentar debido a la naturaleza de las cosas o del cálculo
+
+**e** Dato estimado por extrapolación, proyección o imputación
+
+**s/d** sin dato

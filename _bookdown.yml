@@ -1,0 +1,11 @@
+book_filename: "anuario2021"
+output_dir: docs
+delete_merged_file: true
+language:
+  label:
+    fig: 'Figura '
+    tab: 'Tabla '
+  ui:
+    edit: Editar
+    appendix_name: 'Apéndice '
+    chapter_name: "Capítulo "

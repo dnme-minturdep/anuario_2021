@@ -1,0 +1,734 @@
+---
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r}
+library(tidyverse)
+library(comunicacion)
+library(lubridate)
+library(gt)
+library(ggtext)
+library(herramientas)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.topcaption=TRUE)
+```
+
+
+```{r}
+#Cargo base de trabajo
+b_indicadores_arg <- read_file_srv("/srv/DataDNMYE/economia2/anuario/indicadores.xlsx", sheet =3)
+b_indicadores_sud <- read_file_srv("/srv/DataDNMYE/economia2/anuario/indicadores.xlsx", sheet =4)
+
+anio_anuario <- "2021"
+```
+
+
+# **Indicadores económicos del turismo** {#indicadores-economicos}
+## Introducción
+
+En esta sección se presenta una serie de indicadores económicos con el objetivo de ver la importancia de la actividad turística en la economía del país y un análisis de la evolución de su incidencia durante el período 2005-2021. Asimismo, con el fin de contextualizar a nuestro país en la región, se replicaron estos indicadores para un conjunto de países de Sudamérica que contaban con información disponible.
+
+Los indicadores fueron construidos a partir de fuentes estadísticas de la República Argentina, siguiendo las recomendaciones propuestas por la Organización Mundial del Turismo (OMT) y la Comisión Económica para América Latina y el Caribe (CEPAL)[^CEPAL]. Se utilizan las estimaciones de la cuenta viajes del Balance de Pagos como una aproximación al consumo del turismo receptor (crédito) o al consumo del turismo emisor (débito). Además, se considera a la rama de actividad Hoteles y Restaurantes de las Cuentas Nacionales como el componente principal del Valor Agregado Turístico. Sin embargo, a partir de febrero 2022 se encuentran disponibles los resultados de la [Cuenta satélite de turismo de la Argentina (CST-A)](https://www.yvera.tur.ar/sinta/informe/info/cuenta-satelite-de-turismo){target="_blank"} para la serie 2004 y 2016-2019. La misma proporciona el marco para la medición de la contribución del sector turístico a la economía y sus interrelaciones con el resto de las actividades. Próximamente se encontrarán disponibles los resultados correspondientes al año 2021.
+
+El desafío es lograr construir series históricas de indicadores macroeconómicos de la actividad del turismo, con el propósito de generar herramientas que faciliten el análisis y permitan así determinar la relevancia económica del turismo en el país y, asimismo, sirva de guía de comparación internacional.
+
+Por tanto, este conjunto de indicadores analiza los consumos turísticos en relación al Producto Interno Bruto (PIB), a las exportaciones e importaciones de bienes y servicios; el valor agregado bruto de hoteles, bares y restaurantes en el PIB, entre otros, para poder aproximar la contribución del turismo a la economía en el periodo 2005-2021.
+
+
+[^CEPAL]:[“Proyecto de indicadores Básicos para el análisis del Turismo desde una Perspectiva Económica”](https://www.cepal.org/sites/default/files/events/files/cea3sala_turismo.pdf){target="_blank"} OMT-CEPAL, Marzo 2005
+```{r}
+#Creamos columnas de indicadores (%)
+b_indicadores_arg <- b_indicadores_arg %>% 
+  mutate(consumo_receptor_arg= (consumo_receptivo_ar/pbi_ar)*100,
+         consumo_emisor_arg=(consumo_emisivo_ar/pbi_ar)*100,
+         balanza_turistica_arg= ((consumo_receptivo_ar-consumo_emisivo_ar)/pbi_ar)* 100,
+         apertura_arg=((consumo_receptivo_ar+consumo_emisivo_ar)/pbi_ar)* 100,
+         cobertura_arg=(consumo_receptivo_ar/consumo_emisivo_ar)* 100,
+         consumo_expo_tot_arg=(consumo_receptivo_ar/expo_tot_arg)*100,
+         consumo_impo_tot_arg=(consumo_emisivo_ar/impo_tot_arg)*100,
+         incidencia_vab_total= (vab_hyr/vab_total)*100,
+         incidencia_vab_hoteles= (vab_hoteles/vab_total)*100,
+         incidencia_vab_restaur= (vab_restaur/vab_total)*100,
+         carga_turistas_arg=(tur_no_res_ar/poblacion_ar)*100,
+         carga_visitantes_arg= (visit_no_res_ar/poblacion_ar)*100
+        ) 
+
+b_indicadores_sud <- b_indicadores_sud %>% 
+  mutate(pais= str_to_title(pais),
+         pais= ifelse(pais=="Peru","Perú",pais),
+         consumo_receptor_sud= (consumo_receptivo/pbi_sud)*100,
+         consumo_emisor_sud=(consumo_emisivo/pbi_sud)*100,
+         balanza_turistica_sud= ((consumo_receptivo-consumo_emisivo)/pbi_sud)* 100,
+         apertura_sud=((consumo_receptivo+consumo_emisivo)/pbi_sud)* 100,
+         cobertura_sud=(consumo_receptivo/consumo_emisivo)* 100,
+         consumo_expo_tot_sud=(consumo_receptivo/expo_tot)*100,
+         consumo_impo_tot_sud=(consumo_emisivo/impo_tot)*100,
+         carga_turistas_sud=(tur_no_res/poblacion)*100,
+         carga_visitantes_sud= (visit_no_res/poblacion)*100) %>% 
+  filter(anio_sud==2021)
+
+          
+# Etiqueta para ultimo valor de la serie
+ultimo_dato <- b_indicadores_arg %>%
+  filter(anio_ar == anio_anuario)
+          
+
+#Creamos funcion para armar todos los graficos
+funcion_graficos <- function(base,xvar,yvar, serie=T){
+  #creamos funcion para armar los graficos del capitulo indicadores. Los parametros son:
+  #x=la info que ira en el eje x (ya sea anio para base_arg o pais para base_sud)
+  #y=indicador (ej: consumo_receptor, consumo_emisor..)
+  #base= elegir base_arg o base_sud
+  if(serie==T){
+  grafico_anio <- base %>% 
+    filter(anio_ar>2004) %>% 
+    ggplot(aes(x={{ xvar }}, y={{ yvar }}))+
+    geom_line(size = 1, alpha = .5, colour=dnmye_colores(5)) +
+    geom_point(size = 1.5, colour=dnmye_colores(5)) +
+    geom_text(data=ultimo_dato, 
+              aes(label=paste0(format(round({{ yvar }},1), decimal.mark=","),"%")),
+              size = 3.5,
+              position = position_dodge(width = 1),
+              vjust = -0.5,
+              #family = "Encode Sans",
+              fontface = "bold",
+              colour=dnmye_colores(5)
+              )+
+    scale_x_discrete(limits = c(2005:2021)
+                     )+
+    scale_y_continuous(labels = scales::number_format(decimal.mark = ","))+
+    theme_minimal() +
+    theme(plot.subtitle  = element_markdown(),
+          plot.caption = element_markdown(),
+        strip.text.x   = element_text(face = "bold"),
+        axis.text.x    = element_text(size = 10),
+        #axis.text.y    = element_blank(),
+        strip.text     = element_text(size = 12),
+        #text = element_text(family = "Encode Sans"),
+        panel.grid.minor = element_blank(),
+        #panel.background = element_rect(fill = "white"),
+        panel.grid.major = element_line(color = "grey", linetype = 3)
+  )+ 
+  labs(x = "", y = "")
+  }
+  else {
+    min=base %>% filter({{ yvar }}==min({{ yvar }})) %>% 
+      pull({{ yvar }})
+    
+    if (min < 0) {
+      min <- min
+    } else {
+      min <- 0
+    }
+    
+    max=base %>% filter({{ yvar }}==max({{ yvar }})) %>% 
+      pull({{ yvar }})
+    grafico_pais <- base %>% 
+    ggplot(aes(x={{ xvar }}, y={{ yvar }}))+
+    geom_col(fill=dnmye_colores(1), 
+             position = "dodge",
+             width = .7)+
+    geom_text(aes(label=paste0(format(round({{ yvar }},1), decimal.mark=","),"%")),
+              size = 3.5,
+              position = position_dodge(width = 1),
+              vjust = -0.5,
+              #family = "Encode Sans",
+              fontface = "bold",
+              colour=dnmye_colores(1)
+              )+
+    scale_y_continuous(limits = c(min,max*1.1),
+                       labels = scales::number_format(decimal.mark = ","))+
+    theme_minimal() +
+    theme(plot.subtitle  = element_markdown(),
+          plot.caption = element_markdown(),
+        strip.text.x   = element_text(face = "bold"),
+        axis.text.x    = element_text(size = 10),
+        #axis.text.y    = element_blank(),
+        strip.text     = element_text(size = 12),
+        #text = element_text(family = "Encode Sans"),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.major.x = element_blank()
+  )+ 
+    labs(x = "", y = "")  
+  }}
+
+```
+
+## Sector externo
+**Peso del consumo turístico receptor[^consumo-receptor] en el PIB:**
+
+Este primer indicador refleja la importancia relativa del turismo receptor (medido a través del gasto de los turistas no residentes que visitan el país) en la economía (representada por el PIB). Cuanto mayor sean los ingresos económicos en concepto de turismo receptivo, dado el tamaño del PIB, mayor será el valor de este indicador.
+
+***El indicador es calculado de la siguiente manera:***
+$$
+\frac{Consumo\space turístico\space receptor}{PIB}\times 100\%
+$$
+
+
+
+
+
+
+
+[^consumo-receptor]: Como consumo turístico receptor se consideró al gasto en viajes y pasajes de la Balanza de Pagos.
+
+```{r}
+grafico_9_1_1 <- funcion_graficos(b_indicadores_arg, anio_ar, consumo_receptor_arg,T)+
+  labs(caption="**Fuente:** Balanza de pagos y Cuentas nacionales (INDEC).")
+
+consumo_receptor_arg <- b_indicadores_arg$consumo_receptor_arg[dim(b_indicadores_arg)[1]]
+
+consumo_receptor_arg_var_ia <- (b_indicadores_arg$consumo_receptor_arg[dim(b_indicadores_arg)[1]])-(b_indicadores_arg$consumo_receptor_arg[dim(b_indicadores_arg)[1]-1])
+```
+
+En el año `r anio_anuario`, el ratio ingresos por turismo receptivo sobre PIB fue de `r format (consumo_receptor_arg %>% round(1), decimal.mark=",", big.mark = ".")`%, lo que representa una variación `r ifelse(consumo_receptor_arg_var_ia>0,"positiva","negativa")` de `r format ((ifelse(consumo_receptor_arg_var_ia>0, consumo_receptor_arg_var_ia, (consumo_receptor_arg_var_ia)*(-1))) %>% round(1), decimal.mark=",", big.mark = ".")` puntos porcentuales (p.p.) con respecto al año anterior. La retracción del indicador, del año 2020 en adelante se encontró directamente relacionada con el impacto que recibió el sector por la pandemia del COVID-19.
+
+
+```{r consumoreceptor, fig.cap="Peso del consumo turístico receptor en el PIB. Total país. Años 2005-2021. En porcentaje."}
+grafico_9_1_1
+```
+```{r}
+grafico_9_1_2 <- funcion_graficos(b_indicadores_sud, pais, consumo_receptor_sud,F)+
+  labs(caption="**Fuente:** estadísticas de turismo receptivo de la OMT.")
+
+consumo_receptor_max1_pais <- b_indicadores_sud %>% arrange(-consumo_receptor_sud) %>% slice(1) %>% pull(pais)
+consumo_receptor_max2_pais <- b_indicadores_sud %>% arrange(-consumo_receptor_sud) %>% slice(2) %>% pull(pais)
+consumo_receptor_max3_pais <- b_indicadores_sud %>% arrange(-consumo_receptor_sud) %>% 
+slice(3) %>% pull(pais)
+
+consumo_receptor_max1 <- b_indicadores_sud %>% arrange(-consumo_receptor_sud) %>% slice(1) %>% pull(consumo_receptor_sud)
+consumo_receptor_max2 <- b_indicadores_sud %>% arrange(-consumo_receptor_sud) %>% slice(2) %>% pull(consumo_receptor_sud)
+consumo_receptor_max3 <- b_indicadores_sud %>% arrange(-consumo_receptor_sud) %>% slice(3) %>% pull(consumo_receptor_sud)
+
+```
+
+En el contexto sudamericano, los países que presentaron los mayores pesos del consumo turístico receptor como porcentaje del PIB de la región fueron: `r consumo_receptor_max1_pais` (`r format (consumo_receptor_max1 %>% round(2), decimal.mark=",", big.mark = ".")`%), `r consumo_receptor_max2_pais` (`r format (consumo_receptor_max2 %>% round(2), decimal.mark=",", big.mark = ".")`%) y `r consumo_receptor_max3_pais` (`r format (consumo_receptor_max3 %>% round(2), decimal.mark=",", big.mark = ".")`%).
+
+
+```{r consumoreceptor2, fig.cap="Peso del consumo turístico receptor en el PIB. Total países de Sudamérica. Año 2021. En porcentaje." }
+grafico_9_1_2
+```
+
+**Consumo turístico emisor en el PIB:**
+
+La participación del consumo turístico emisor en el PIB describe la importancia relativa del turismo emisor en la economía del país (representada por el PIB). Mientras mayor sea el valor de dicho indicador, el turismo emisor será más importante desde el punto de vista económico, dado un nivel de PIB.
+
+***El indicador es calculado de la siguiente manera:***
+$$
+\frac{Consumo\space turístico\space emisor}{PIB}\times 100\%
+$$
+
+```{r}
+grafico_9_2_1 <- funcion_graficos(b_indicadores_arg, anio_ar, consumo_emisor_arg)+
+  labs(caption="**Fuente:** Balanza de pagos y Cuentas nacionales (INDEC).")
+
+consumo_emisor_arg <- b_indicadores_arg$consumo_emisor_arg[dim(b_indicadores_arg)[1]]
+
+consumo_emisor_arg_var_ia <- (b_indicadores_arg$consumo_emisor_arg[dim(b_indicadores_arg)[1]])-(b_indicadores_arg$consumo_emisor_arg[dim(b_indicadores_arg)[1]-1])
+
+
+```
+En el año `r anio_anuario`, el ratio egresos por turismo emisivo sobre PIB fue de `r format (consumo_emisor_arg %>% round(1), decimal.mark=",", big.mark = ".")`%, lo que representó una variación `r ifelse(consumo_emisor_arg_var_ia>0,"positiva","negativa")` de `r format ((ifelse(consumo_emisor_arg_var_ia>0, consumo_emisor_arg_var_ia, (consumo_emisor_arg_var_ia)*(-1))) %>% round(1), decimal.mark=",", big.mark = ".")` p.p. respecto al año anterior.
+
+```{r consumoemisor, fig.cap="Peso del consumo turístico emisor en el PIB. Total país. Años 2005-2021. En porcentaje."}
+grafico_9_2_1
+```
+
+
+```{r}
+grafico_9_2_2 <- funcion_graficos(b_indicadores_sud, pais, consumo_emisor_sud,F)+
+  labs(caption="**Fuente:** estadísticas de turismo emisivo de la OMT.")
+
+consumo_emisor_max1_pais <- b_indicadores_sud %>% arrange(-consumo_emisor_sud) %>% slice(1) %>% pull(pais)
+consumo_emisor_max2_pais <- b_indicadores_sud %>% arrange(-consumo_emisor_sud) %>% slice(2) %>% pull(pais)
+consumo_emisor_max3_pais <- b_indicadores_sud %>% arrange(-consumo_emisor_sud) %>% 
+slice(3) %>% pull(pais)
+
+consumo_emisor_max1 <- b_indicadores_sud %>% arrange(-consumo_emisor_sud) %>% slice(1) %>% pull(consumo_emisor_sud)
+consumo_emisor_max2 <- b_indicadores_sud %>% arrange(-consumo_emisor_sud) %>% slice(2) %>% pull(consumo_emisor_sud)
+consumo_emisor_max3 <- b_indicadores_sud %>% arrange(-consumo_emisor_sud) %>% slice(3) %>% pull(consumo_emisor_sud)
+```
+
+En el contexto sudamericano, los países que presentaron los mayores pesos del consumo turístico emisor como PIB de la región fueron: `r consumo_emisor_max1_pais` (`r format (consumo_emisor_max1 %>% round(2), decimal.mark=",", big.mark = ".")`%), `r consumo_emisor_max2_pais` (`r format (consumo_emisor_max2 %>% round(2), decimal.mark=",", big.mark = ".")`%) y `r consumo_emisor_max3_pais` (`r format (consumo_emisor_max3 %>% round(2), decimal.mark=",", big.mark = ".")`%).
+
+
+```{r consumoemisor2, fig.cap="Peso del consumo turístico emisor en el PIB. Países de Sudamérica. Año 2021. En porcentaje."}
+grafico_9_2_2
+```
+
+
+**Balanza turística en relación al PIB:**
+
+La participación relativa de la balanza turística en el PIB describe el impacto neto del turismo internacional en la producción de un país. Si el consumo turístico receptor es superior al consumo turístico emisor, el resultado es un superávit de la balanza turística; y viceversa: si el gasto turístico emisor es superior al receptor, el saldo es negativo y representa un déficit de la balanza turística. Su relación con el PIB permite medir su importancia económica. 
+
+La evolución de ese indicador es crucial para la actividad económica y turística de un país.
+En este sentido, un déficit turístico persistente implica que se destina una mayor parte de “la renta” generada en el país para ser consumida en el exterior que la producción compensatoria generada por el consumo del turismo receptor.
+
+***El indicador es calculado de la siguiente manera:***
+$$
+\frac{Consumo\space turístico\space receptor-Consumo\space turístico\space emisor}{PIB}\times 100\%
+$$
+
+```{r}
+grafico_9_3_1 <- funcion_graficos(b_indicadores_arg, anio_ar, balanza_turistica_arg)+
+  labs(caption="**Fuente:** Balanza de pagos (INDEC) y Ministerio de Economía (MECON).")
+
+balanza_turistica_arg <- b_indicadores_arg$balanza_turistica_arg[dim(b_indicadores_arg)[1]]
+
+# balanza_turistica_arg_var_ia <- (b_indicadores_arg$balanza_turistica_arg[dim(b_indicadores_arg)[1]])-(b_indicadores_arg$balanza_turistica_arg[dim(b_indicadores_arg)[1]-1])
+```
+
+Para `r anio_anuario`, este indicador alcanzó un nivel de `r format (balanza_turistica_arg %>% round(1), decimal.mark=",", big.mark = ".")`%, reflejando la relevancia del saldo negativo del turismo para la economía argentina.
+
+```{r balanza, fig.cap= "Balanza turística sobre PIB. Total país. Años 2005-2021. En porcentaje."}
+grafico_9_3_1 
+```
+
+```{r}
+grafico_9_3_2 <- funcion_graficos(b_indicadores_sud, pais, balanza_turistica_sud,F)+
+  labs(caption="**Fuente:** Banco Mundial.")
+
+balanza_turistica_max1_pais <- b_indicadores_sud %>% filter(balanza_turistica_sud>=0) %>% slice(1) %>% pull(pais)
+balanza_turistica_max2_pais <- b_indicadores_sud %>% filter(balanza_turistica_sud>=0) %>% slice(2) %>% pull(pais)
+balanza_turistica_max3_pais <- b_indicadores_sud %>% filter(balanza_turistica_sud>=0) %>% slice(3) %>% pull(pais)
+  
+
+balanza_turistica_max1 <- b_indicadores_sud %>% filter(balanza_turistica_sud>=0) %>% slice(1) %>% pull(balanza_turistica_sud)
+balanza_turistica_max2 <- b_indicadores_sud %>% filter(balanza_turistica_sud>=0) %>% slice(1) %>% pull(balanza_turistica_sud)
+balanza_turistica_max3 <- b_indicadores_sud %>% filter(balanza_turistica_sud>=0) %>% slice(1) %>% pull(balanza_turistica_sud)
+```
+
+En la comparación regional los países que presentan superávit en su balanza turística fueron: `r balanza_turistica_max1_pais` (`r format (balanza_turistica_max1 %>% round(2), decimal.mark=",", big.mark = ".")`%), `r balanza_turistica_max2_pais` (`r format (balanza_turistica_max2 %>% round(2), decimal.mark=",", big.mark = ".")`%) y `r balanza_turistica_max3_pais` (`r format (balanza_turistica_max3 %>% round(2), decimal.mark=",", big.mark = ".")`%). Estos resultados podrían estar relacionados con el nivel de ingresos por habitante y la cantidad de habitantes que tiene cada país.    
+
+```{r balanza2, fig.cap= "Balanza turística sobre PIB, países de Sudamérica. Año 2021. En porcentaje."}
+grafico_9_3_2
+```
+
+
+**Grado de apertura turística:**
+
+El grado de apertura turística de un país describe la importancia del gasto turístico internacional, tanto en términos de ingresos como egresos, en la economía del país. De este modo, permite medir el grado de “internacionalización” de una economía en términos turísticos. Mientras mayor sea el valor de dicho indicador, el turismo internacional será más importante desde el punto de vista económico, para un nivel de PIB dado.
+
+***El indicador es calculado de la siguiente manera:***
+$$
+\frac{Consumo\space turístico\space receptor+Consumo\space turístico\space emisor}{PIB}\times 100\%
+$$
+
+```{r}
+grafico_9_4_1 <- funcion_graficos(b_indicadores_arg, anio_ar, apertura_arg)+
+  labs(caption="**Fuente:** Balanza de pagos (INDEC) y Ministerio de Economía (MECON).")
+
+apertura_arg <- b_indicadores_arg$apertura_arg[dim(b_indicadores_arg)[1]]
+
+apertura_arg_var_ia <- (b_indicadores_arg$apertura_arg[dim(b_indicadores_arg)[1]])-(b_indicadores_arg$apertura_arg[dim(b_indicadores_arg)[1]-1])
+```
+En el año `r anio_anuario`, este indicador registró un nivel de `r format (apertura_arg %>% round(1), decimal.mark=",", big.mark = ".")`%, es decir `r format (apertura_arg_var_ia %>% round(1), decimal.mark=",", big.mark = ".")` p.p. que el nivel del año anterior. 
+
+
+```{r apertura, fig.cap="Grado de apertura turística. Total país. Años 2005-2021. En porcentaje."}
+grafico_9_4_1
+```
+
+```{r}
+grafico_9_4_2 <- funcion_graficos(b_indicadores_sud, pais, apertura_sud,F)+
+  labs(caption="**Fuente:** OMT y Banco Mundial.")
+
+apertura_max1_pais <- b_indicadores_sud %>% arrange(-apertura_sud) %>% slice(1) %>% pull(pais)
+apertura_max2_pais <- b_indicadores_sud %>% arrange(-apertura_sud) %>% slice(2) %>% pull(pais)
+apertura_max3_pais <- b_indicadores_sud %>% arrange(-apertura_sud) %>% 
+slice(3) %>% pull(pais)
+
+apertura_max1 <- b_indicadores_sud %>% arrange(-apertura_sud) %>% slice(1) %>% pull(apertura_sud)
+apertura_max2 <- b_indicadores_sud %>% arrange(-apertura_sud) %>% slice(2) %>% pull(apertura_sud)
+apertura_max3 <- b_indicadores_sud %>% arrange(-apertura_sud) %>% slice(3) %>% pull(apertura_sud)
+
+```
+En la comparación regional los países que se destacan por su turismo internacional desde el punto de vista económico fueron: `r apertura_max1_pais` (`r format (apertura_max1 %>% round(2), decimal.mark=",", big.mark = ".")`%), `r apertura_max2_pais` (`r format (apertura_max2 %>% round(2), decimal.mark=",", big.mark = ".")`%) y `r apertura_max3_pais` (`r format (apertura_max3 %>% round(2), decimal.mark=",", big.mark = ".")`%).
+
+```{r apertura2, fig.cap="Grado de apertura turística. Total Sudamérica. Año 2021. En porcentaje."}
+grafico_9_4_2
+```
+
+
+**Grado de cobertura turística:**
+
+El grado de cobertura turística describe la relación entre los ingresos de divisas asociados al gasto turístico receptor y el egreso de divisas por turismo emisor. Representa la capacidad del turismo receptivo de “financiar” las divisas demandadas por los gastos que realizan los residentes cuando visitan el resto del mundo. El indicador será mayor que 100 si las corrientes monetarias asociadas al turismo entrante son superiores a aquellas vinculadas con el turismo emisor. Y viceversa: si el indicador es inferior a 100, el gasto turístico receptor es menor que el gasto turístico emisor, y por ende el turismo demanda divisas generadas en otra actividad. El indicador vincula directamente los flujos monetarios en entrada y en salida por motivos turísticos.
+
+***El indicador es calculado de la siguiente manera:***
+$$
+\frac{Consumo\space turístico\space receptor}{Consumo\space turístico\space emisor}\times 100\%
+$$
+
+```{r}
+grafico_9_5_1 <- funcion_graficos(b_indicadores_arg, anio_ar, cobertura_arg)+
+  labs(caption="**Fuente:** Balanza de Pagos (INDEC).")
+
+cobertura_arg <- b_indicadores_arg$cobertura_arg[dim(b_indicadores_arg)[1]]
+
+#cobertura_arg_var_ia <- (b_indicadores_arg$apertura_arg[dim(b_indicadores_arg)[1]])-(b_indicadores_arg$apertura_arg[dim(b_indicadores_arg)[1]-1])
+```
+
+En el año `r anio_anuario` el grado de cobertura fue de `r format (cobertura_arg %>% round(1), decimal.mark=",", big.mark = ".")`%; esto significa que de cada cien dólares gastados fuera del país por turistas argentinos, `r format (cobertura_arg %>% round(1), decimal.mark=",", big.mark = ".")` fueron “cubiertos” por ingresos de divisas del turismo receptivo. 
+
+```{r cobertura, fig.cap="Grado de cobertura turística. Total país. Años 2005-2021. En porcentaje."}
+grafico_9_5_1
+```
+
+
+
+```{r}
+grafico_9_5_2 <- funcion_graficos(b_indicadores_sud, pais, cobertura_sud,F)+
+  labs(caption="**Fuente:** OMT.")
+
+cobertura_max1_pais <- b_indicadores_sud %>% filter(cobertura_sud>=100) %>% slice(1) %>% pull(pais)
+cobertura_max2_pais <- b_indicadores_sud %>% filter(cobertura_sud>=100) %>% slice(2) %>% pull(pais)
+cobertura_max3_pais <- b_indicadores_sud %>% filter(cobertura_sud>=100) %>% slice(3) %>% pull(pais)
+  
+
+cobertura_max1 <- b_indicadores_sud %>% filter(cobertura_sud>=100) %>% slice(1) %>% pull(cobertura_sud)-100
+cobertura_max2 <- b_indicadores_sud %>% filter(cobertura_sud>=100) %>% slice(2) %>% pull(cobertura_sud)-100
+cobertura_max3 <- b_indicadores_sud %>% filter(cobertura_sud>=100) %>% slice(3) %>% pull(cobertura_sud)-100
+```
+
+En la comparación regional, la mayoría de los países exhiben un grado de cobertura inferior a 100. Superando este nivel se encontraron `r cobertura_max1_pais`, `r cobertura_max2_pais` y `r cobertura_max3_pais`. Es decir que, en esos países, los ingresos por turismo receptivo superaron a los egresos en un `r format (cobertura_max1 %>% round(1), decimal.mark=",", big.mark = ".")`%, `r format (cobertura_max2 %>% round(1), decimal.mark=",", big.mark = ".")`% y `r format (cobertura_max3 %>% round(1), decimal.mark=",", big.mark = ".")`% respectivamente.
+
+```{r cobertura2, fig.cap="Grado de cobertura turística. Países de Sudamérica. Año 2021. En porcentaje."}
+grafico_9_5_2
+```
+
+
+**Consumo turístico receptor sobre exportaciones de bienes y servicios:**
+
+Cuando un turista no residente consume un bien o servicio en nuestro país, este gasto es considerado una exportación de servicios turísticos. La participación relativa del gasto turístico receptor en las exportaciones de bienes y servicios es un indicador que describe su importancia en relación al total de ventas de bienes y servicios de Argentina al exterior. Mientras mayor sea el valor de dicho indicador, mayor será la especialización turística del país.
+
+***El indicador es calculado de la siguiente manera:***
+$$
+\frac{Consumo\space turístico\space receptor}{Exportaciones\space de\space bienes\space y\space servicios\space}\times 100\%
+$$
+
+
+```{r}
+grafico_9_6_1 <- funcion_graficos(b_indicadores_arg, anio_ar, consumo_expo_tot_arg)+
+  labs(caption="**Fuente:** Balanza de Pagos (INDEC).")
+
+consumo_expo_arg <- b_indicadores_arg$consumo_expo_tot_arg[dim(b_indicadores_arg)[1]]
+```
+
+En el año `r anio_anuario` los ingresos por viajes y pasajes representaron el `r format (consumo_expo_arg %>% round(1), decimal.mark=",", big.mark = ".")`% de las exportaciones totales.
+
+
+```{r consumoexpo, fig.cap="Participación del consumo turístico receptor sobre exportaciones de bienes y servicios. Total país. Años 2005-2021. En porcentaje."}
+grafico_9_6_1
+```
+
+
+
+```{r}
+grafico_9_6_2 <- funcion_graficos(b_indicadores_sud %>% filter(pais!="Chile"), pais, consumo_expo_tot_sud,F)+
+  labs(caption="**Fuente:** OMT y Banco Mundial.")
+
+consumo_expo_max1_pais <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_expo_tot_sud) %>% slice(1) %>% pull(pais)
+consumo_expo_max2_pais <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_expo_tot_sud) %>% slice(2) %>% pull(pais)
+consumo_expo_max3_pais <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_expo_tot_sud) %>% 
+slice(3) %>% pull(pais)
+
+consumo_expo_max1 <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_expo_tot_sud) %>% slice(1) %>% pull(consumo_expo_tot_sud)
+consumo_expo_max2 <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_expo_tot_sud) %>% slice(2) %>% pull(consumo_expo_tot_sud)
+consumo_expo_max3 <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_expo_tot_sud) %>% slice(3) %>% pull(consumo_expo_tot_sud)
+
+
+```
+
+En la comparación regional, los países con mayor especialización turística fueron: `r consumo_expo_max1_pais` (`r format (consumo_expo_max1 %>% round(2), decimal.mark=",", big.mark = ".")`%), `r consumo_expo_max2_pais` (`r format (consumo_expo_max2 %>% round(2), decimal.mark=",", big.mark = ".")`%) y `r consumo_expo_max3_pais` (`r format (consumo_expo_max3 %>% round(2), decimal.mark=",", big.mark = ".")`%).
+
+```{r consumoexpo2, fig.cap="Participación del consumo turístico receptor sobre exportaciones de bienes y servicios. Países de Sudamérica. Año 2021. En porcentaje."}
+grafico_9_6_2
+```
+
+
+
+**Consumo turístico emisivo sobre importaciones de bienes y servicios:**
+
+La participación del consumo turístico en el valor de las importaciones de bienes y servicios describe la importancia relativa del turismo emisor en la compra de productos (bienes y servicios) del exterior.
+
+
+
+***El indicador es calculado de la siguiente manera:***
+$$
+\frac{Consumo\space turístico\space emisor}{Importaciones\space de\space bienes\space y\space servicios\space}\times 100\%
+$$
+
+
+```{r}
+grafico_9_7_1 <- funcion_graficos(b_indicadores_arg, anio_ar, consumo_impo_tot_arg)+
+  labs(caption="**Fuente:** Balanza de Pagos (INDEC).")
+
+consumo_impo_arg <- b_indicadores_arg$consumo_impo_tot_arg[dim(b_indicadores_arg)[1]]
+```
+
+En el año `r anio_anuario`, los egresos por viajes y pasajes representaron el `r format (consumo_impo_arg %>% round(1), decimal.mark=",", big.mark = ".")`% de las importaciones totales. 
+
+```{r consumoimpo, fig.cap= "Consumo turístico emisivo sobre importaciones de bienes y servicios. Total País. Años 2005-2021. En porcentaje."}
+grafico_9_7_1
+```
+
+
+```{r}
+grafico_9_7_2 <- funcion_graficos(b_indicadores_sud %>% filter(pais!="Chile"), pais, consumo_impo_tot_sud,F)+
+  labs(caption="**Fuente:** OMT y Banco Mundial.")
+
+consumo_impo_max1_pais <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_impo_tot_sud) %>% slice(1) %>% pull(pais)
+consumo_impo_max2_pais <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_impo_tot_sud) %>% slice(2) %>% pull(pais)
+consumo_impo_max3_pais <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_impo_tot_sud) %>% 
+slice(3) %>% pull(pais)
+
+consumo_impo_max1 <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_impo_tot_sud) %>% slice(1) %>% pull(consumo_impo_tot_sud)
+consumo_impo_max2 <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_impo_tot_sud) %>% slice(2) %>% pull(consumo_impo_tot_sud)
+consumo_impo_max3 <- b_indicadores_sud %>% filter(pais!="Chile") %>% arrange(-consumo_impo_tot_sud) %>% slice(3) %>% pull(consumo_impo_tot_sud)
+
+```
+
+En la comparación regional, los países con el mayor peso de las importaciones de turismo en el comercio exterior fueron:  `r consumo_impo_max1_pais` (`r format (consumo_impo_max1 %>% round(2), decimal.mark=",", big.mark = ".")`%), `r consumo_impo_max2_pais` (`r format (consumo_impo_max2 %>% round(2), decimal.mark=",", big.mark = ".")`%) y `r consumo_impo_max3_pais` (`r format (consumo_impo_max3 %>% round(2), decimal.mark=",", big.mark = ".")`%).
+
+```{r consumoimpo2, fig.cap="Consumo turístico emisivo sobre importaciones de bienes y servicios. Países de Sudamérica. Año 2021. En porcentaje."}
+grafico_9_7_2
+```
+
+## Valor agregado bruto en ramas turísticas
+
+**Valor agregado bruto (VAB) de hoteles, bares y restaurantes:**
+
+El VAB de los Hoteles, Bares y Restaurantes es la suma de los valores monetarios de los bienes y servicios producidos en esos establecimientos en un determinado periodo, generalmente un año. Este indicador permite evaluar la actividad económica, y realizar comparaciones de los niveles de producción en distintos periodos.
+
+
+```{r}
+data_grafico_vab <- b_indicadores_arg %>% 
+  select(anio_ar,vab_hyr) %>% 
+  mutate(variacion_vab= round(((vab_hyr/lag(vab_hyr, n=1))-1)*100, 1),
+         vab_hyr=round(vab_hyr,1)) %>% 
+  pivot_longer(cols = c("vab_hyr","variacion_vab"), names_to="indicador", values_to="n") %>% 
+  mutate(variacion_color=case_when(indicador=="variacion_vab"& n > 0 ~ "positiva",
+                                   indicador=="variacion_vab"& n < 0 ~ "negativa"),
+         etiqueta = factor(indicador, levels = c("vab_hyr","variacion_vab"),
+                           labels = c ("VAB hoteles y restaurantes <br>(en millones de pesos de 2004)", "Var. i.a. (%)"))) %>% 
+  filter(anio_ar>2004)
+
+grafico_vab <- data_grafico_vab %>% 
+  ggplot(aes(x=anio_ar, y=n))+
+  geom_hline(yintercept = 0, color = "black", alpha = 0.6)+
+  geom_line(data = filter(data_grafico_vab, indicador == "vab_hyr"), aes(group = ""), 
+            size = 1,  alpha = .5, color =  dnmye_colores(6)) +
+  geom_point(data = filter(data_grafico_vab, indicador == "vab_hyr"),
+             size = 1.1, color = dnmye_colores(6)) +
+  geom_col(data = filter(data_grafico_vab, indicador == "variacion_vab" & !is.na(n)),
+           aes(fill = variacion_color))+
+  scale_fill_manual(values = c("negativa" = dnmye_colores(1), 
+                               "positiva" = dnmye_colores(5))) +
+  geom_text(data = filter(data_grafico_vab, (indicador == "variacion_vab" & !is.na(n))),
+            aes(x = anio_ar, y = n, label = paste0(n, "%"), colour = variacion_color),
+            size = 2,  
+            fontface = "bold",
+            vjust = -0.9,
+            #family = "Encode Sans"
+            ) +
+  geom_text(data = filter(data_grafico_vab,(indicador == "vab_hyr" & anio_ar == anio_anuario)),
+                        aes(x = anio_ar, y = n, label = paste0("$", format(round(n,1),decimal.mark=","), "M")),
+            color = dnmye_colores(1),
+            size = 3,  
+            fontface = "bold",
+            vjust = -0.25,
+            #family = "Encode Sans"
+            )+
+  scale_colour_manual(values = c("positiva" = "black",
+                                 "negativa" = "white")) +
+  coord_cartesian(clip="off")+
+  scale_x_discrete(limits = c(2005:2021))+
+  theme_minimal() +
+  theme(
+    #text = element_text(family = "Encode Sans"), 
+    plot.title    = element_markdown(size = 10),
+    plot.subtitle = element_markdown(size = 8),
+    plot.caption  = element_markdown(size = 6),
+    strip.text.y  = element_markdown(size = 8, face = "bold"),
+    axis.text.x   = element_text(size = 10,angle = 90),
+    axis.text.y   = element_markdown(size = 10),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.x = element_blank(),
+    legend.position = "none",
+    strip.placement = "outside"
+  ) +
+  facet_grid(facets = "etiqueta", scale="free")+
+  labs(caption = "**Fuente:** Cuentas nacionales (INDEC).",
+       x = "", y = "")
+
+
+vab_hyr <- b_indicadores_arg$vab_hyr[dim(b_indicadores_arg)[1]]
+
+vab_hyr_var_ia <- ((b_indicadores_arg$vab_hyr[dim(b_indicadores_arg)[1]]/b_indicadores_arg$vab_hyr[dim(b_indicadores_arg)[1]-1])-1)*100
+
+vab_hyr_var_19 <- ((b_indicadores_arg$vab_hyr[dim(b_indicadores_arg)[1]]/b_indicadores_arg$vab_hyr[dim(b_indicadores_arg)[1]-2])-1)*100
+
+recuperacion <- vab_hyr_var_19+100
+
+```
+
+
+En el año `r anio_anuario`, el VAB de este sector alcanzó los `r format (vab_hyr %>% round(1), decimal.mark=",", big.mark = ".")` millones de pesos (a precios de 2004). Esto representó un `r ifelse(vab_hyr_var_ia>0,"crecimiento","decrecimiento")` respecto al año anterior (`r format (vab_hyr_var_ia %>% round(1), decimal.mark=",", big.mark = ".")`%), no obstante, aún no logró igualar la tendencia de los años 2010-2019, en donde el indicador se posicionaba entre los 10.000 y 11.500 millones de pesos. Comparando con el nivel prepandemia (2019), se ha recuperado un `r format (recuperacion %>% round(1), decimal.mark=",", big.mark = ".")`%.
+
+```{r vab, fig.cap= "Evolución del valor agregado bruto (VAB) de hoteles y restaurantes. Años 2005-2021."}
+grafico_vab
+```
+
+
+**Importancia del valor agregado bruto de hoteles, bares y restaurantes en el VAB total:**
+
+La participación del valor agregado bruto generado en la actividad de los hoteles, bares y restaurantes en el VAB total describe la importancia de esa actividad en la economía del país.
+
+
+```{r}
+grafico_9_9_1 <- funcion_graficos(b_indicadores_arg, anio_ar, incidencia_vab_total)+
+  labs(caption="**Fuente:** Cuentas Nacionales (INDEC).")
+
+incidencia_vab_total <- b_indicadores_arg$incidencia_vab_total[dim(b_indicadores_arg)[1]]
+
+incidencia_vab_total_var_ia <- (b_indicadores_arg$incidencia_vab_total[dim(b_indicadores_arg)[1]])-(b_indicadores_arg$incidencia_vab_total[dim(b_indicadores_arg)[1]-1])
+
+incidencia_vab_total_2019 <- b_indicadores_arg$incidencia_vab_total[dim(b_indicadores_arg)[1]-2]
+```
+
+En el año `r anio_anuario`, la incidencia del VAB del sector en el VAB total fue de `r format (incidencia_vab_total %>% round(1), decimal.mark=",", big.mark = ".")`% (`r format (incidencia_vab_total_var_ia %>% round(1), decimal.mark=",", big.mark = ".")` p.p. var i.a.). Sin embargo, este nivel aún no logró alcanzar el de prepandemia (2019), cuando el indicador se posicionaba en `r format (incidencia_vab_total_2019 %>% round(1), decimal.mark=",", big.mark = ".")`%.
+
+```{r vab2, fig.cap="Importancia relativa del valor agregado bruto de hoteles y restaurantes en el VAB total. Total País. Años 2005-2021. En porcentaje."}
+grafico_9_9_1
+
+#aca se podrian agregar graficos adicionales de la incidencia de hoteles y restaurantes por separado
+```
+
+
+## Carga turística
+
+
+La carga turística es el ratio entre el número de turistas/visitantes no residentes y la población total del país. El indicador es importante para el análisis del desarrollo del turismo; su evolución en el tiempo ofrece una referencia de la capacidad del país para recibir a los visitantes no residentes, bajo el supuesto de que la infraestructura disponible y los demás servicios no varíen considerablemente de un año a otro.
+
+***El indicador es calculado de la siguiente manera:***
+$$
+\frac{Turistas\space no\space residentes}{Población\space}\times 100\%
+$$
+$$
+\frac{Visitantes\space no\space residentes}{Población\space}\times 100\%
+$$
+
+
+
+ 
+
+
+
+```{r}
+#Carga turistas
+grafico_9_10_1 <- funcion_graficos(b_indicadores_arg, anio_ar, carga_turistas_arg)+
+  labs(caption="**Fuente:** DNMyE, INDEC y Banco Mundial.")
+
+carga_turistas_arg <- b_indicadores_arg$carga_turistas_arg[dim(b_indicadores_arg)[1]]
+
+carga_turistas_arg_var_ia <- (b_indicadores_arg$carga_turistas_arg[dim(b_indicadores_arg)[1]])-(b_indicadores_arg$carga_turistas_arg[dim(b_indicadores_arg)[1]-1])
+```
+
+Las graves consecuencias de la pandemia por Covid-19 en el sector turístico se vieron reflejadas en este indicador. El mismo alcanzó un `r format (carga_turistas_arg %>% round(1), decimal.mark=",", big.mark = ".")`% en el año `r anio_anuario`, demostrando así una variación de `r format (carga_turistas_arg_var_ia %>% round(1), decimal.mark=",", big.mark = ".")` p.p. respecto al año anterior.  
+
+
+```{r cargaturistas, fig.cap="Carga turística (turistas).Total País. Años 2005-2021. En porcentaje."}
+grafico_9_10_1
+```
+
+```{r}
+#Carga visitantes
+grafico_9_10_2 <- funcion_graficos(b_indicadores_arg %>% filter(anio_ar>2015), anio_ar, carga_visitantes_arg)+
+  scale_x_continuous(n.breaks = 6) +
+  labs(caption="**Fuente:** DNMyE, INDEC y Banco Mundial.")
+
+carga_visitantes_arg <- b_indicadores_arg$carga_visitantes_arg[dim(b_indicadores_arg)[1]]
+
+carga_visitantes_arg_var_ia <- (b_indicadores_arg$carga_visitantes_arg[dim(b_indicadores_arg)[1]])-(b_indicadores_arg$carga_visitantes_arg[dim(b_indicadores_arg)[1]-1])
+
+```
+
+Por su parte, a partir del 2016, la DNMyE comenzó a relevar el dato de visitantes (turistas+excursionistas). Para este caso, el indicador se posicionó en `r format (carga_visitantes_arg %>% round(1), decimal.mark=",", big.mark = ".")`% (`r format (carga_visitantes_arg_var_ia %>% round(1), decimal.mark=",", big.mark = ".")` p.p. var i.a.)
+
+
+```{r cargavisitantes, fig.cap="Carga turística (visitantes).Total País. Años 2005-2021. En porcentaje."}
+grafico_9_10_2
+```
+
+
+```{r}
+grafico_9_10_3 <- funcion_graficos(b_indicadores_sud %>% filter(tur_no_res!=0), pais, carga_turistas_sud,F)+
+  labs(caption="**Fuente:** OMT y Banco Mundial.")
+
+carga_turistas_max1_pais <- b_indicadores_sud %>% arrange(-carga_turistas_sud) %>% slice(1) %>% pull(pais)
+carga_turistas_max2_pais <- b_indicadores_sud %>% arrange(-carga_turistas_sud) %>% slice(2) %>% pull(pais)
+carga_turistas_max3_pais <- b_indicadores_sud %>% arrange(-carga_turistas_sud) %>% 
+slice(3) %>% pull(pais)
+
+carga_turistas_max1 <- b_indicadores_sud %>% arrange(-carga_turistas_sud) %>% slice(1) %>% pull(carga_turistas_sud)
+carga_turistas_max2 <- b_indicadores_sud %>% arrange(-carga_turistas_sud) %>% slice(2) %>% pull(carga_turistas_sud)
+carga_turistas_max3 <- b_indicadores_sud %>% arrange(-carga_turistas_sud) %>% slice(3) %>% pull(carga_turistas_sud)
+```
+
+En la comparación regional, los países con mayor carga turística de turistas en `r anio_anuario` fueron: `r carga_turistas_max1_pais` (`r format (carga_turistas_max1 %>% round(2), decimal.mark=",", big.mark = ".")`%), `r carga_turistas_max2_pais` (`r format (carga_turistas_max2 %>% round(2), decimal.mark=",", big.mark = ".")`%) y `r carga_turistas_max3_pais` (`r format (carga_turistas_max3 %>% round(2), decimal.mark=",", big.mark = ".")`%).
+
+```{r cargaturistas2, fig.cap="Carga turística (turistas). Países de Sudamérica. Año 2021. En porcentaje."}
+grafico_9_10_3
+```
+
+
+
+```{r}
+#Carga visitantes
+grafico_9_10_4 <- funcion_graficos(b_indicadores_sud %>% filter(visit_no_res!=0), pais, carga_visitantes_sud,F)+
+  labs(caption="**Fuente:** OMT y Banco Mundial.")
+
+carga_visitantes_max1_pais <- b_indicadores_sud %>% arrange(-carga_visitantes_sud) %>% slice(1) %>% pull(pais)
+carga_visitantes_max2_pais <- b_indicadores_sud %>% arrange(-carga_visitantes_sud) %>% slice(2) %>% pull(pais)
+carga_visitantes_max3_pais <- b_indicadores_sud %>% arrange(-carga_visitantes_sud) %>% 
+slice(3) %>% pull(pais)
+
+carga_visitantes_max1 <- b_indicadores_sud %>% arrange(-carga_visitantes_sud) %>% slice(1) %>% pull(carga_visitantes_sud)
+carga_visitantes_max2 <- b_indicadores_sud %>% arrange(-carga_visitantes_sud) %>% slice(2) %>% pull(carga_visitantes_sud)
+carga_visitantes_max3 <- b_indicadores_sud %>% arrange(-carga_visitantes_sud) %>% slice(3) %>% pull(carga_visitantes_sud)
+```
+
+En el caso de visitantes, se encontraron: `r carga_visitantes_max1_pais` (`r format (carga_visitantes_max1 %>% round(2), decimal.mark=",", big.mark = ".")`%), `r carga_visitantes_max2_pais` (`r format (carga_visitantes_max2 %>% round(2), decimal.mark=",", big.mark = ".")`%) y `r carga_visitantes_max3_pais` (`r format (carga_visitantes_max3 %>% round(2), decimal.mark=",", big.mark = ".")`%).
+
+```{r cargavisitantes2, fig.cap="Carga turística (visitantes). Países de Sudamérica. Año 2021. En porcentaje."}
+grafico_9_10_4
+```
+
+## Recursos disponibles
+
+Los datos de cantidad de turistas y visitantes que se muestran en este capítulo forman parte del Sistema de Información Turística de la Argentina (SINTA) <https://www.yvera.tur.ar/sinta/>{target="_blank"} de la Dirección Nacional de Mercados y Estadística (DNMyE). Los mismos se presentan a través de distintos formatos:
+
+-   [Informes:]( https://www.yvera.tur.ar/sinta/informe/info/turismo-internacional){target="_blank"} publicación mensual de los datos del turismo receptivo y emisivo de la Argentina (residentes en el extranjero que visitan el país y residentes argentinos que viajan al exterior, respectivamente) estimados en base a los registros migratorios provistos por la Dirección Nacional de Migraciones (DNM) y la Encuesta de Turismo Internacional (ETI).
+
+-   [Tablero:]( https://tableros.yvera.tur.ar/turismo_internacional/){target="_blank"} para la consulta de datos desagregados de las estimaciones históricas de Turismo Internacional.
+
+-   [Reporte:]( https://tableros.yvera.tur.ar/internacional.html){target="_blank"} presenta la última información de turismo receptivo, emisivo y balanza turística por todas las vías (aéreo, terrestre y fluvial / marítimo). 
+
+-   [Datos Abiertos:]( https://datos.yvera.gob.ar/dataset?groups=turismo-internacional){target="_blank"} el portal incluye un conjunto de datasets y recursos disponibles en diferentes niveles de desagregación y en variados formatos en caso de que se necesite un reprocesamiento de los mismos.
+
+Otros datos fueron recolectados de fuentes externas, tales como:
+
+-   [Agregados macroeconómicos (PIB), INDEC:]( https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-9-47){target="_blank"} se utilizaron los datos definitivos del producto interno bruto en términos constantes para la serie 2004-2019. 
+
+-   [Producto Interno Bruto, Datos Argentina:]( https://datos.gob.ar/mn_MN/dataset/sspm-producto-interno-bruto-dolares-producto-interno-bruto-per-capita-poblacion/archivo/sspm_9.1){target="_blank"} para los datos de PIB en dólares (a precios corrientes) de Argentina.
+
+-   [Balanza de pagos, INDEC:]( https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-35-45){target="_blank"} para los datos de consumo turístico y la información del comercio exterior de Argentina.
+
+-   [Proyecciones de población, INDEC:]( https://www.indec.gob.ar/indec/web/Nivel3-Tema-2-24){target="_blank"} para los datos de población a partir de 2010.
+
+-   [Base de datos de estadísticas de turismo, OMT:]( https://www.unwto.org/tourism-statistics/key-tourism-statistics){target="_blank"} para los datos de consumo turístico y cantidad de turistas/visitantes de los países de Sudamérica.
+
+-   [Indicadores del Banco Mundial:](https://datos.bancomundial.org/indicador/){target="_blank"} se utilizaron los datos de PIB (en dólares a precios actuales), datos de exportaciones e importaciones (en dólares a precios actuales) y datos de población para los países de Sudamérica. También se utilizaron los datos de población de Argentina hasta 2009. 
+
+
