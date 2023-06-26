@@ -82,28 +82,6 @@ var2015 <- str_remove(pull((serie[serie$anio == anio, "total"]/serie[serie$anio 
 
 Respecto del año 2015, el número de agencias registró una disminución del `r var2015` en el año `r as.character(anio)`, con un total de `r lbl_int(pull(serie[serie$anio == anio, "total"]))`. El total se compone de `r serie %>% filter(anio == .GlobalEnv$anio) %>% pull(EVT) %>% format(big.mark=".")` Empresas de viajes y turismo (EVT), `r serie %>% filter(anio == .GlobalEnv$anio) %>% pull(AT) %>% format(big.mark=".")` Agencias de turismo (AT), `r serie %>% filter(anio == .GlobalEnv$anio) %>% pull(AP) %>% format(big.mark=".")` Agencias de pasajes (AP) y `r serie %>% filter(anio == .GlobalEnv$anio) %>% pull(ESFL) %>% format(big.mark=".")` Empresas sin fines de lucro (ESFL).
 
-```{r}
-#Tabla evolución por categoria
-# tabla_1 <- serie %>% 
-#   mutate(anio = as.character(anio)) %>% 
-#   gt() %>% 
-#   cols_label(anio = "Año",
-#              total = "Total",
-#              var = "Var i.a. %") %>%
-#     gt_theme_dnmye() %>%
-#   sub_missing(columns = everything(),  missing_text = "-") %>% 
-#   tab_footnote("Nota: no se cuenta con datos del Registro de Agencias de Viajes para el período 2016-2020.") %>% 
-#   tab_footnote(md("**Fuente**: Dirección Nacional de Mercados y Estadística (DNMyE) en base a datos de la Dirección Nacional de Agencias de Viajes.")) %>% 
-#   fmt_percent(columns = var, decimals = 1, dec_mark = ",") %>%  
-#   tab_caption(glue("Agencias de viajes habilitadas por tipo de categoría. Total país. Años 2004-2015/{anio}."))
-
-```
-
-```{r agencias1}
-
-# tabla_1
-```
-
 ```{r agencias2, fig.cap=glue("Agencias de viajes habilitadas por tipo de categoría. Total país. Años 2004-2015/{anio}."), fig.height=4}
 # Gráfico evolución por categoria
 serie %>% 
@@ -123,13 +101,6 @@ serie %>%
 
 ```{r}
 # Base de sucursales
-
-#gs4_deauth()
-
-#agencias_suc <- read_sheet("https://docs.google.com/spreadsheets/d/1wJ4rrbvBFd1sgX-Ibo12QUC2QR-wG0et6bfshNWcx3U/edit#gid=0")
-
-#write_csv(agencias_suc, "agencias_sucursales.csv")
-
 agencias_suc <- read_file_srv("agencias/agencias_sucursales.csv")
 
 tabla_sucursales <- agencias_suc %>% 
@@ -376,9 +347,7 @@ Como se visualiza en el siguiente gráfico, existe una mayor proporción de agen
 ```{r agencias50, fig.cap=glue("Agencias de viajes habilitadas que operan turismo internacional según modalidad. Año {anio}.")}
 
 modalidad_unica %>% 
-  #filter(Tipo != "No especificado") %>% 
   ggplot(aes(x = reorder(Tipo, porcentaje), y  = porcentaje, label = lbl_percent(porcentaje))) +
-  # ggplot(aes(reorder(Tipo, porcentaje), porcentaje)) +
   geom_col(fill = dnmye_colores("cian")) + 
   geom_label(size = 2.5, hjust = -0.1) +
   labs(x = "", y = "", 

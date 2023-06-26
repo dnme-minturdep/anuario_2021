@@ -13,9 +13,8 @@ library(magrittr) #pipe
 library(janitor)
 library(lubridate)
 library(haven)
-#library(dplyr) #Group_by,summarise, lag, filter
 library(glue)
-library (gt)
+library(gt)
 library(comunicacion)
 library(hrbrthemes) 
 library(ggtext) 
@@ -37,6 +36,7 @@ anio_texto <- "2021"
 
 
 ```{r echo=FALSE}
+#Lectura de datos PUNA
 puna <- herramientas::read_file_srv("/srv/DataDNMYE/puna/serie_puna.csv") %>% 
   mutate(anio = as.integer(anio),
          provincia = case_when(str_detect(provincia, "Tierra del Fuego") ~ 
@@ -345,8 +345,6 @@ tabla1 <- data_cuadro1 %>%
 ```
 
 ```{r puna4}
-
-#gtsave(tabla1, "imagenes/tabla1_puna.png")
 tabla1
 ```
 
@@ -435,8 +433,6 @@ tabla2 <- data_cuadro2 %>%
   sub_missing(columns = everything(),
               missing_text = "///") %>% 
     sub_zero(everything(), zero_text = "///")
-
-#gtsave(tabla2, "imagenes/tabla2_puna.png")
 
 tabla2
 ```
@@ -718,7 +714,6 @@ tabla3 <- ranking_loc %>%
               container.overflow.y = T) %>% 
   tab_caption(caption = glue("Ranking de localidades según oferta de plazas de alojamientos colectivos. Total País. Años 2015-{Anio}."))
 
-#gtsave(tabla3, "imagenes/tabla3_puna.png")
 tabla3
 ```
 
@@ -921,7 +916,6 @@ tabla_nac <- ranking_cad %>%
   sub_missing(everything(), missing_text = "-") %>% 
   tab_caption(caption = glue("Ranking de las principales cadenas nacionales según plazas. Total país. Año {Anio}."))
 
-#gtsave(tabla_nac, "imagenes/tablaNac.png")
 tabla_nac
 ```
 
@@ -950,7 +944,6 @@ tabla_int <- ranking_cad %>%
   sub_missing(everything(), missing_text = "-") %>% 
   tab_caption(caption = glue("Ranking de las principales cadenas internacionales según plazas. Total país. Año {Anio}."))
 
-#gtsave(tabla_int, "imagenes/tablaInt.png")
 tabla_int
 ```
 
