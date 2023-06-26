@@ -127,16 +127,12 @@ excursionistas <- read_file_srv("/srv/DataDNMYE/turismo_internacional/bases_proc
 
   
 
-#anuales (1990-) por pais_agrupado
+#Receptivo: anuales (1990-anio anuario) por pais_agrupado
 receptivo_anual_pais <- read_file_srv("/srv/DataDNMYE/turismo_internacional/bases_proceso/series/serie_anual_pais_1990.xlsx", 
                                  sheet = "receptivo")
-#anuales (1990-) por pais_agrupado
-#emisivo_anual_pais <- read_file_srv("/srv/DataDNMYE/turismo_internacional/bases_proceso/serie_anual_pais_1990.xlsx", 
-#                                 sheet = "emisivo")
 
-
-
-#levanto datos  90-2015:
+#Emisivo: (en receptivo se levantó serie completa, en emisivo lo hicimos separado)
+#a)levanto datos  90-2015:
 
 emisivo_90_2015 <- read_file_srv("/srv/DataDNMYE/turismo_internacional/bases_proceso/series/serie_emisivo_1990_ancho.xlsx", sheet = "anual_pais_90") %>% 
   filter(anio <= 2015) %>% 
@@ -144,14 +140,14 @@ emisivo_90_2015 <- read_file_srv("/srv/DataDNMYE/turismo_internacional/bases_pro
                names_to = c("destino_agrup"),
                values_to = "turistas_e")
 
-#datos desde 2016:
+#b) levanto datos desde 2016:
 
 emisivo_2016 <- emisivo %>% 
   filter(tipo_visitante == "Turistas") %>% 
   group_by(anio, destino_agrup) %>% 
   summarise(turistas_e = sum(casos_ponderados))
 
-# junto (en receptivo levanté todo del excel. Si no cambia la serie actual es lo mismo.)
+#c) sumo serie historica a serie actual 
 
 emisivo_anual_pais <- rbind(emisivo_90_2015, emisivo_2016) 
 
@@ -193,8 +189,6 @@ El total de  viajes de turistas no residentes en `r as.character(anio_ref)` fue 
 
 ```{r ti1}
 
-#, fig.cap= glue("Viajes de visitantes, turistas y excursionistas no residentes por año. Total país. Años {anio_ref-10}-{anio_ref}.")
-
 ti1 <- serie_vis_r %>% 
 gt() %>% 
 gt_theme_dnmye() %>% 
@@ -208,18 +202,12 @@ cols_label(
  var_interanual_exc = md("**Variación interanual (%)**")) %>% 
 fmt_number(columns  = c(2,4,6), sep_mark = ".", dec_mark = ",", decimals = 0) %>% 
 fmt_number(columns  = 1, sep_mark = "", decimals = 0) %>% 
-#fmt_percent(columns = c(3,5,7), sep_mark = ".",dec_mark = ",") %>% 
-#sub_missing(columns = c(3,5,7), missing_text = "///") %>% 
 tab_source_note(source_note = md("**Fuente**: DNMyE en base a datos de DNM y ETI.")) %>% 
   tab_options(container.height = 600,
               container.overflow.y = T) %>% 
   tab_caption( glue("Viajes de visitantes, turistas y excursionistas no residentes por año. Total país. Años {anio_ref-10}-{anio_ref}."))
 
-
-#gtsave(ti1, "imagenes/ti/tabla1.png")
 ti1
-
-#rm(tabla1)
 
 ```
 
@@ -324,7 +312,6 @@ graf_1.3 <- ggplot(g_1.3, aes(x= pais_agrupado, y = porc)) +
 geom_col(fill = "#50B8B1")+
 geom_label(aes(label = scales::label_percent(decimal.mark = ",", accuracy = 0.1 )(porc)), size = 2.5)+
 scale_y_continuous(labels = scales::label_percent(scale = 100, decimal.mark = ",")) + 
-#scale_fill_dnmye()+ #seteo color porque queda gris oscuro
 theme_minimal()+
 theme(legend.position = "bottom", 
       axis.text.x =element_text (size =9, angle = 40, vjust = 0.5),
@@ -393,8 +380,6 @@ En comparación con el año 2019, las variaciones rondan el -95%, comenzando muy
 
 ```{r ti5}
 
-#, fig.cap=glue("Viajes de turistas no residentes y variación interanual según lugar de residencia por mes. Total país. Año {anio_ref}.")
-
 #base por mes y pais 
 
 c_1.2_pais <- base_visitantes %>% 
@@ -402,9 +387,8 @@ filter (turismo_internac == "Receptivo", anio %in% c(anio_ref,anio_ref-1), tipo_
   group_by (anio, mes, pais_agrupado) %>% 
   summarise (tur = round(sum(casos_ponderados))) %>% 
   ungroup() %>% 
-  mutate (var = tasa_variacion(tur,periodo = 108),
-          var = if_else(var == Inf, NA_real_, var))#9 paises *12 meses
-
+  mutate (var = tasa_variacion(tur,periodo = 108), #9 paises *12 meses
+          var = if_else(var == Inf, NA_real_, var))
 #por anio y pais
 
 c_1.2_pais_tot <- c_1.2_pais %>% 
@@ -460,8 +444,8 @@ c_1.2_anual <- c_1.2 %>%
 c_1.2 <- c_1.2 %>% 
   bind_rows(c_1.2_anual) %>% 
   arrange(anio, mes) %>% 
-  mutate(var_tot = tasa_variacion(tur,periodo = 13),
-         var_tot = if_else(var_tot == Inf, NA_real_, var_tot)) %>% #12 meses + total
+  mutate(var_tot = tasa_variacion(tur,periodo = 13),#12 meses + total
+         var_tot = if_else(var_tot == Inf, NA_real_, var_tot)) %>% 
   filter(anio == anio_ref) 
 
 #traigo var. 2019:
@@ -501,13 +485,11 @@ ti5 <- gt(c_1.2_pais_tot_completo) %>%
   tur_Europa	= md(	"Europa"),
   'tur_Resto del mundo'	= md(	"Resto del mundo")) %>% 
   fmt_number(columns  =c(2, seq(5,22,2)), sep_mark = ".", dec_mark = ",", decimals = 0) %>% 
-  #fmt_percent(columns = seq(4,22,2), sep_mark = ".",dec_mark = ",") %>% 
   tab_source_note(source_note = md("**Fuente**: DNMyE en base a datos de DNM y ETI.")) %>% 
   tab_options(container.height = 600,
               container.overflow.y = T) %>% 
   tab_caption(glue("Viajes de turistas no residentes y variación interanual según lugar de residencia por mes. Total país. Año {anio_ref}."))
 
-#gtsave(ti5, "imagenes/ti/tabla2.png")
 ti5
 
 ```
@@ -519,8 +501,6 @@ Las limitaciones para el ingreso y egreso de no residentes por pasos terrestres 
 Las variaciones respecto a 2019 tienen una caída  mayor a 90 % en todas las vías y países, excepto en los viajes de los turistas  de Europa, EE.UU. y Canadá por vía aérea, cuyos viajes tienen variaciones cercanas al -88%. 
 
 ```{r ti6}
-
-#, fig.cap=glue("Viajes de turistas no residentes por medio de transporte según año y lugar de residencia. Total país. Año {anio_ref}.")
 
 #via pais
 
@@ -620,14 +600,11 @@ ti6 <- gt(via_pais_con_v19) %>%
     var_terrestre	= md(	"Variación interanual (%)"),
     prop_terrestre	= md(	"Participación en el total (%)")) %>% 
   fmt_number(columns  = c(2,seq(4,12,4)), sep_mark = ".", dec_mark = ",", decimals = 0) %>% 
-  #fmt_percent(columns = c(4,5,7,8,10,11), sep_mark = ".",dec_mark = ",") %>% 
   tab_source_note(
     source_note = md("**Fuente**: DNMyE en base a datos de DNM y ETI.")) %>%
   tab_options(container.height = 600,
               container.overflow.y = T) %>%
   tab_caption(glue("Viajes de turistas no residentes por medio de transporte según año y lugar de residencia. Total país. Año {anio_ref}."))
-
-#gtsave(ti6, "imagenes/ti/tabla3.png")
 
 ti6
 
@@ -835,8 +812,6 @@ cols_label(
  var_interanual_p = md("**Variación interanual (%)**")) %>% 
 fmt_number(columns  = c(2,4,6,8), sep_mark = ".", dec_mark = ",", decimals = 1,  scale_by = 0.000001) %>% 
 fmt_number(columns  = 1, sep_mark = "", decimals = 0) %>% 
-#fmt_percent(columns = c(3,5,7), sep_mark = ".",dec_mark = ",") %>% 
-#sub_missing(columns = c(3,5,7), missing_text = "///") %>% 
 tab_source_note(source_note = md("**Fuente**: DNMyE en base a datos de INDEC.")) %>% 
   tab_options(container.height = 600,
               container.overflow.y = T) %>%
@@ -873,7 +848,6 @@ ti8 <- ggplot(gasto_lim_rec, aes(ym(paste(anio, 1, sep = "-")), gasto/1000000, c
   scale_color_dnmye() + 
   scale_x_date(date_breaks = "1 years", date_labels = "%Y", expand = c(.01,.01))+ 
   scale_y_continuous(labels = scales::number_format(big.mark = ".", decimal.mark = "," ))+
-  #guides(color=guide_legend(nrow=2))+
   theme_minimal()+
   theme(legend.position = "bottom", 
         axis.text.x = element_text (angle=90),
@@ -925,7 +899,6 @@ graf_ti9 <- ggplot(ti9, aes(x= pais_agrupado, y = porc)) +
 geom_col(fill = "#50B8B1")+
 geom_label(aes(label = scales::label_percent(decimal.mark = ",", accuracy = 0.1 )(porc)), size = 2.5)+
 scale_y_continuous(labels = scales::label_percent(scale = 100, decimal.mark = ",")) + 
-#scale_fill_dnmye()+ #seteo color porque queda gris oscuro
 theme_minimal()+
 theme(legend.position = "bottom", 
       axis.text.x =element_text (size =9, angle = 40, vjust = 0.5),
@@ -974,7 +947,7 @@ ti9b <- gt(tabla_gasto_pais_r) %>%
   gasto = md("**Gasto Total**"),
   var_ia = md(	"**Variación interanual (%)**"), 
   var_2019 = md(	"**Variación vs. 2019 (%)**")) %>%  
-  tab_source_note(source_note = md("**Fuente**: DNMyE en base a datos de INDEC.")) %>% #
+  tab_source_note(source_note = md("**Fuente**: DNMyE en base a datos de INDEC.")) %>% 
   tab_caption(glue("Gasto de turistas no residentes por lugar de residencia, en millones de US$. Total país. Año {anio_ref}."))
 
 ti9b
@@ -1186,7 +1159,6 @@ var_prepandemia_e <- last(serie_vis_e$Turistas)/ serie_vis_e$Turistas[serie_vis_
 El total de  viajes de turistas residentes en `r as.character(anio_ref)` fue de `r format( last(serie_vis_e$Turistas), big.mark = ".",decimal.mark = ",")`, con `r ifelse(last(serie_vis_e$var_interanual_tur)>0,"un aumento ","una caída")` interanual de un `r format(round(100 * abs (last(serie_vis_e$var_interanual_tur)), 1),decimal.mark = ",",big.mark = ".")`%. En comparación con 2019, `r ifelse(var_prepandemia_e > 0, "aumentó", "cayó")` un `r format(round(100 * abs (var_prepandemia_e), 1),decimal.mark = ",",big.mark = ".")`%.
 
 ```{r ti13} 
-#, fig.cap=glue("Viajes de visitantes, turistas y excursionistas residentes por año. Total país. Años {anio_ref-10}-{anio_ref}.")
 
 ti13 <- serie_vis_e %>% 
 gt() %>% 
@@ -1201,7 +1173,6 @@ Excursionistas = md("**Excursionistas residentes**"),
 var_interanual_exc = md("**Variación interanual (%)**")) %>% 
 fmt_number(columns  = c(2,4,6), sep_mark = ".", dec_mark = ",", decimals = 0) %>% 
 fmt_number(columns  = 1, sep_mark = "", decimals = 0) %>% 
-#fmt_percent(columns = c(3,5,7), sep_mark = ".",dec_mark = ",") %>% 
 sub_missing(columns = c(3,5,7), missing_text = "///") %>% 
   tab_source_note(
     source_note = md("**Fuente**: DNMyE en base a datos de DNM y ETI.")) %>% 
@@ -1210,7 +1181,6 @@ sub_missing(columns = c(3,5,7), missing_text = "///") %>%
   tab_caption(glue("Viajes de visitantes, turistas y excursionistas residentes por año. Total país. Años {anio_ref-10}-{anio_ref}."))
 
 
-#gtsave(ti13,"imagenes/ti/tabla4.png")
 ti13
 ```
  <br>
@@ -1306,7 +1276,6 @@ graf_1.3 <- ggplot(g_1.3, aes(x= destino_agrup, y = porc)) +
 geom_col(fill = "#50B8B1")+
 geom_label(aes(label = scales::label_percent(decimal.mark = ",", accuracy = 0.1 )(porc)), size = 2.5)+
 scale_y_continuous(labels = scales::label_percent(scale = 100, decimal.mark = ",")) + 
-#scale_fill_dnmye()+ #seteo color porque queda gris oscuro
 theme_minimal()+
 theme(legend.position = "bottom", 
       axis.text.x =element_text (size =9, angle = 40, vjust = 0.5),
@@ -1333,14 +1302,9 @@ geom_col(aes(fill = as_factor(anio)), position = "dodge") +
 geom_label(aes(label = format(tur, big.mark = ".", decimal.mark = ","), group = anio), 
            label.size = 0.15,
            label.padding =  unit(0.05, "lines"),
-           position = position_dodge(width = 0.9),#bajo ancho,se corre uno a la izq y otro a la der
+           position = position_dodge(width = 0.9),
            vjust = -0.05,
            size= 2.5)+
-#geom_label(aes(label = tur/1000),
- #label.size = 0.15,
- #label.padding =  unit(0.15, "lines"),
- #position = position_dodge(width = 0.9),
- #vjust = -0.2, size = 3)+
 scale_y_continuous(labels = scales::number_format(big.mark = ".", decimal.mark = ",")) +
 scale_fill_dnmye()+
 theme_minimal()+
@@ -1371,8 +1335,8 @@ filter (turismo_internac == "Emisivo", anio %in% c(anio_ref,anio_ref-1), tipo_vi
   group_by (anio, mes, destino_agrup) %>% 
   summarise (tur = round(sum(casos_ponderados))) %>% 
   ungroup() %>% 
-  mutate (var = tasa_variacion(tur,periodo = 108),
-          var = if_else(var == Inf, NA_real_, var))#9 paises *12 meses
+  mutate (var = tasa_variacion(tur,periodo = 108), #9 paises *12 meses
+          var = if_else(var == Inf, NA_real_, var))
 
 #por anio y pais
 
@@ -1390,7 +1354,7 @@ c_1.2_pais_con_tot <- c_1.2_pais_tot %>%
   bind_rows(c_1.2_pais) %>% 
   pivot_wider (names_from = destino_agrup,
                values_from = c(tur,var),
-               names_vary = "slowest") %>% #ordena tur bol, var_bol, etc.
+               names_vary = "slowest") %>% 
   filter(anio == anio_ref) 
   
 c_1.2 <- c_1.2_pais %>% 
@@ -1408,9 +1372,9 @@ c_1.2_anual <- c_1.2 %>%
 c_1.2 <- c_1.2 %>% 
   bind_rows(c_1.2_anual) %>% 
   arrange(anio, mes) %>% 
-  mutate(var_tot = tasa_variacion(tur,periodo = 13),
+  mutate(var_tot = tasa_variacion(tur,periodo = 13), #12 meses + total
          var_tot = if_else(var_tot == Inf, NA_real_, var_tot)
-         ) %>% #12 meses + total
+         ) %>% 
   filter(anio == anio_ref) 
 
 
@@ -1477,14 +1441,12 @@ gt_theme_dnmye() %>%
   tur_Europa	= md(	"Europa"),
   'tur_Resto del mundo'	= md(	"Resto del mundo")) %>% 
   fmt_number(columns  = c(2,seq(5,22,2)), sep_mark = ".", dec_mark = ",", decimals = 0) %>% 
-  #fmt_percent(columns = seq(4,22,2), sep_mark = ".",dec_mark = ",") %>% 
   tab_source_note(
     source_note = md("**Fuente**: DNMyE en base a datos de DNM y ETI."))  %>% 
   tab_options(container.height = 600,
               container.overflow.y = T) %>%
   tab_caption(glue("Viajes de turistas residentes y variación interanual según país de destino principal por mes. Total país. Año {anio_ref}."))
 
-#gtsave(ti17, "imagenes/ti/tabla5.png")
 ti17
 ```
  <br>
@@ -1576,9 +1538,6 @@ La caída respecto a 2019 ha sido algo menor en la vía aérea: `r lbl_decimal(f
 
 ```{r ti18}
 
-#, fig.cap=glue("Viajes de turistas residentes por medio de transporte según año y país de destino principal principal. Total país. Año {anio_ref}.")
-
-  
 ti18<- gt(via_pais_con_v19_e) %>% 
   gt_theme_dnmye(var_total = destino_agrup) %>% 
   tab_spanner(label = "Aéreo", columns = ends_with("aereo")) %>% 
@@ -1601,14 +1560,12 @@ ti18<- gt(via_pais_con_v19_e) %>%
     var_terrestre	= md(	"Variación interanual (%)"),
     prop_terrestre	= md(	"Participación en el total (%)")) %>% 
   fmt_number(columns  = c(2,seq(4,12,4)), sep_mark = ".", dec_mark = ",", decimals = 0) %>% 
-  #fmt_percent(columns = c(4,5,7,8,10,11), sep_mark = ".",dec_mark = ",") %>% 
   tab_source_note(
     source_note = md("**Fuente**: DNMyE en base a datos de DNM y ETI.")) %>% 
   tab_options(container.height = 600,
               container.overflow.y = T) %>%
   tab_caption(glue("Viajes de turistas residentes por medio de transporte según año y país de destino principal. Total país. Año {anio_ref}."))
 
-#gtsave(ti18, "imagenes/ti/tabla6.png")
 ti18
 
 ```
@@ -1677,8 +1634,6 @@ cols_label(
  var_interanual_p = md("**Variación interanual (%)**")) %>% 
  fmt_number(columns  = c(2,4,6,8), sep_mark = ".", dec_mark = ",", decimals = 1, scale_by = 0.000001) %>% 
  fmt_number(columns  = 1, sep_mark = "", decimals = 0) %>% 
-#fmt_percent(columns = c(3,5,7), sep_mark = ".",dec_mark = ",") %>% 
-#sub_missing(columns = c(3,5,7), missing_text = "///") %>% 
 tab_source_note(source_note = md("**Fuente**: DNMyE en base a datos de INDEC.")) %>% 
   tab_options(container.height = 600,
               container.overflow.y = T) %>%
@@ -1724,95 +1679,6 @@ ti20
 
 ```
 
-
-```{r ti21_no_va}
-
-#tabla_gasto_pais_e <- gasto_pais_e %>% 
-#  filter(anio >= 2019) %>% 
-#  mutate(var = tasa_variacion(gasto, periodo = 9*4), #9 paises, 4 trim
-#         #var2019 = tasa_variacion(gasto, periodo = 9*4*2) #idem, 2 años 
-#  ) %>% 
-#  pivot_wider (names_from = pais_agrupado,
-#               values_from = c(gasto,var),
-#               names_vary = "slowest")
-#
-#gasto_pais_e_totales <- gasto_pais_e %>% 
-#  filter(anio >= 2019) %>% 
-#  group_by(anio,trim) %>% 
-#  summarise(gasto = sum(gasto)) %>% 
-#  ungroup() %>% 
-#  mutate(var = tasa_variacion(gasto, periodo = 4), 
-#         var2019 = tasa_variacion (gasto, periodo = 4*2)) %>%  #idem, 2 años 
-#  filter(anio == anio_ref) %>% 
-#  left_join(tabla_gasto_pais_e) %>% 
-#  select(-anio) %>% 
-#  mutate(trim = as.character(trim))
-#
-#fila_total <- gasto_pais_e %>% 
-#  filter(anio >= 2019) %>% 
-#  group_by(anio, pais_agrupado) %>% 
-#  summarise(gasto = sum(gasto)) %>% 
-#  ungroup() %>%  
-#  mutate(var = tasa_variacion(gasto, periodo = 9)) %>% 
-#  filter(anio == anio_ref) %>% 
-#  pivot_wider (names_from = pais_agrupado,
-#               values_from = c(gasto,var), #var2019
-#               names_vary = "slowest")
-#
-#gasto_pais_e_final <-  gasto_pais_e %>% 
-#  filter(anio >= 2019) %>% 
-#  group_by(anio ) %>% 
-#  summarise(gasto = sum(gasto)) %>% 
-#  ungroup() %>%  
-#  mutate(trim ="Total", 
-#         var = tasa_variacion(gasto, periodo = 1), 
-#         var2019 = tasa_variacion (gasto, periodo = 2)) %>%  #idem, 2 años 
-#  filter(anio == anio_ref) %>% 
-#  left_join(fila_total) %>% 
-#  select(-anio) %>%   
-#  bind_rows(gasto_pais_e_totales) %>% 
-#  relocate(trim,.before = gasto) %>% 
-#  rename(var_tot = var,
-#         var_2019 = var2019)
-#
-#
-#
-#ti21 <- gt(gasto_pais_e_final) %>% 
-#  gt_theme_dnmye(var_total = trim) %>%  
-#  cols_label(
-#  trim = md("**Trimestre**"),
-#  gasto = md("**Total**"),
-#  var_tot = md(	"Variación interanual (%)"), 
-#  var_2019 = md(	"Variación vs. 2019 (%)"), 
-#  var_Bolivia	= md(	"Variación interanual (%)"),
-#  var_Brasil	= md(	"Variación interanual (%)"),
-#  var_Chile	= md(	"Variación interanual (%)"),
-#  var_Paraguay	= md(	"Variación interanual (%)"),
-#  var_Uruguay	= md(	"Variación interanual (%)"),
-#  'var_EE.UU. y Canadá'	= md(	"Variación interanual (%)"),
-#  'var_Resto de América'	= md(	"Variación interanual (%)"),
-#  var_Europa	= md(	"Variación interanual (%)"),
-#  'var_Resto del mundo'	= md(	"Variación interanual (%)"),
-#  gasto_Bolivia	= md(	"Bolivia"),
-#  gasto_Brasil	= md(	"Brasil"),
-#  gasto_Chile	= md(	"Chile"),
-#  gasto_Paraguay	= md(	"Paraguay"),
-#  gasto_Uruguay	= md(	"Uruguay"),
-#  'gasto_EE.UU. y Canadá'	= md(	"EE.UU. y Canadá"),
-#  'gasto_Resto de América'	= md(	"Resto de América"),
-#  gasto_Europa	= md(	"Europa"),
-#  'gasto_Resto del mundo'	= md(	"Resto del mundo")) %>% 
-#  fmt_number(columns  =c(2, seq(5,22,2)), sep_mark = ".", dec_mark = ",", decimals = #1) %>% 
-#  #fmt_percent(columns = seq(4,22,2), sep_mark = ".",dec_mark = ",") %>% 
-#  tab_source_note(source_note = md("**Fuente**: DNMyE en base a datos de INDEC.")) %>% #
-#  tab_caption(glue("Gasto de turistas residentes y variación interanual por lugar de #destino según trimestre, en millones de US$. Total país. Año {anio_ref}.")) 
-#
-#ti21
-
-
-```
-
-
 ```{r}
 
 ti21 <- gasto_pais_e %>% 
@@ -1846,7 +1712,6 @@ graf_ti21 <- ggplot(ti21, aes(x= pais_agrupado, y = porc)) +
 geom_col(fill = "#50B8B1")+
 geom_label(aes(label = scales::label_percent(decimal.mark = ",", accuracy = 0.1 )(porc)), size = 2.5)+
 scale_y_continuous(labels = scales::label_percent(scale = 100, decimal.mark = ",")) + 
-#scale_fill_dnmye()+ #seteo color porque queda gris oscuro
 theme_minimal()+
 theme(legend.position = "bottom", 
       axis.text.x =element_text (size =9, angle = 40, vjust = 0.5),
@@ -2067,9 +1932,6 @@ ti25<- gt(tabla_balance_anual_pais) %>%
     colors = scales::col_bin( #Paleta con los colores
       bins = c(-Inf, 0, Inf),
       palette = c(dnmye_colores("rosa"), dnmye_colores("azul verde")))) 
-
-#  tab_style(style = list(gt::cell_text(weight = "bold")), 
-#        locations = gt::cells_body(columns = -c(anio)))
 
 ti25
 
