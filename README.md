@@ -7,3 +7,4 @@ El Anuario Estadístico de Turismo (AET) compila la información anual de las di
 
 Esta edición tiene como novedad la publicación en formato `bookdown`, el cual permite una navegación más ágil y, gracias a la publicación de su código fuente, permitirá actualizar el contenido para futuras ediciones.
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8082960.svg)](https://doi.org/10.5281/zenodo.8082960)
