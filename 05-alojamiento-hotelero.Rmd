@@ -961,7 +961,7 @@ Al igual que en el resto de los capítulos, se debe considerar que el año anali
 
 ```{r}
 
-#-----------------------Se levanta la base---------------------#
+#-----------------------Para levantar la base de la EOH---------------------#
 
 
 eoh <- herramientas::read_file_srv("/srv/DataDNMYE/eoh/bases/eoh.rds") %>% 
@@ -1014,7 +1014,7 @@ El crecimiento estuvo traccionado por las pernoctaciones de los residentes: `r f
 
 ```{r }
 
-#Tabla GT (dato chequeado)
+#Tabla GT
 
 eoh1 %>%
   gt()%>%
@@ -1108,6 +1108,8 @@ Los viajeros residentes fueron `r format(round(eoh2[nrow(eoh2),5]/1000000,1),dec
 
 ```{r eoh2 }
 
+#Tabla en gt:
+
 eoh2 %>%
   gt()%>%
   gt_theme_dnmye() %>% 
@@ -1161,9 +1163,10 @@ rm(eoh2)
 
 ```{r}
 
-# eoh3 Pernoctaciones y viajeros hospedados en establecimientos
+# Pernoctaciones y viajeros hospedados en establecimientos
 #hoteleros y parahoteleros por condición de residencia.
 
+#Insumo:
 
 eoh3 <- eoh %>%
   filter(anio==anio_ref | anio==(anio_ref-1) | anio==(anio_ref-2)) %>% 
@@ -1193,7 +1196,7 @@ eoh3 <- eoh %>%
 
 ```{r eoh3, fig.cap=glue("Pernoctaciones y viajeros (en millones) hospedados en establecimientos hoteleros y parahoteleros por condición de residencia. Total país. Años {anio_ref-2}-{anio_ref}.")}
 
-# Gráfico en ggplot (Dato chequeado)
+# Gráfico en ggplot
 
 ggplot(data=eoh3 %>% 
          filter(residencia !="Total")
@@ -1225,6 +1228,8 @@ ggplot(data=eoh3 %>%
 
 
 ```{r}
+
+#Insumo
 
 eoh4 <- eoh %>%
   filter(anio==anio_ref | anio==(anio_ref-1) | anio==(anio_ref-2)) %>% 
@@ -1260,12 +1265,13 @@ Las **estadías promedio** (expresadas en noches) ascendieron a `r format(round(
 
 #Estadía promedio de los viajeros por año, según condición de residencia.
 
+#Gráfico en ggplot:
+
 ggplot(data = eoh4 %>% mutate(anio=factor(anio,levels = c(anio_ref-2,anio_ref-1,anio_ref)),
                               indicador=factor(indicador,levels = c("Total","Residentes","No Residentes"))),
        aes(y=valor,x=indicador,label=format(round(valor,1),decimal.mark = ","),fill=indicador))+
   facet_wrap(~anio)+
   geom_col()+
-  #geom_text(position = position_stack(vjust = 1.02),size=2.5)+
   geom_label(fill="white",size=2.5, position=position_dodge(width=0.9),vjust=0.25)+
   scale_fill_manual(values = c("Residentes" = dnmye_colores("rosa"),
                                "No Residentes" = dnmye_colores("cian"),
@@ -1294,6 +1300,8 @@ rm(eoh4)
 
 
 ```{r}
+
+#Insumo:
 
 eoh5 <- eoh %>%
   filter(anio==anio_ref | anio==anio_ref-1 | anio==anio_ref-2) %>% 
@@ -1327,7 +1335,7 @@ eoh5 <- eoh %>%
                        mes==9~"Sep",mes==10~"Oct",mes==11~"Nov",mes==12~"Dic")) %>% 
   select(mes,everything(),-c(anio,indice_de_tiempo))
 
-#Selección de variaciones vs 2019 para el anuario 2021.
+#Selección de variaciones vs 2019 (para el anuario 2021).
   
 if (anio_ref==2021) {
   eoh5 <- eoh5 %>% select(mes,pern_totales,var_1,var_1b,pern_res,var_2,var_2b,pern_nores,var_3,var_3b)
@@ -1366,16 +1374,12 @@ ranking_nores <- eoh5 %>%
                        mes=="Sep"~"septiembre",mes=="Oct"~"octubre",
                        mes=="Nov"~"noviembre",mes=="Dic"~"diciembre"))
 
-
-
-
 ```
 
 Cuando se analiza la estacionalidad de la información presentada, se evidencia que en `r anio_texto` el mes con mayor cantidad de pernoctaciones fue **`r ranking_total[nrow(ranking_total),1]`**. Mismo mes se presenta primero en el ranking de pernoctaciones de residentes y no residentes.
 
 
 ```{r eoh5 }
-
 
 eoh5 %>%
   gt()%>%
@@ -1416,6 +1420,8 @@ rm(eoh5,ranking_total,ranking_res,ranking_nores)
 
 #Viajeros según residencia por mes
 
+#Insumo:
+
 eoh6 <- eoh %>%
   filter(anio==anio_ref | anio==anio_ref-1 | anio==anio_ref-2) %>% 
   group_by(anio,indice_de_tiempo) %>%
@@ -1447,7 +1453,6 @@ eoh6 <- eoh %>%
                        mes==5~"May",mes==6~"Jun",mes==7~"Jul",mes==8~"Ago",
                        mes==9~"Sep",mes==10~"Oct",mes==11~"Nov",mes==12~"Dic")) %>% 
   select(mes,everything(),-c(anio,indice_de_tiempo))
-
 
 
 #Selección de variaciones vs 2019 para el anuario 2021.
@@ -1497,6 +1502,7 @@ En el caso de los **viajeros hospedados**, también se observaron los mayores re
 
 ```{r eoh6, fig.cap=glue("Viajeros hospedados según residencia, por mes. Total país, año {anio_ref}.")}
 
+#Tabla en gt:
 
 eoh6 %>%
   gt()%>%
@@ -1535,6 +1541,8 @@ rm(eoh6,ranking_total,ranking_res,ranking_nores)
 ### Pernoctaciones y viajeros según región de destino
 
 ```{r}
+
+#Insumo:
 
 eoh7 <- eoh %>%
   filter(anio==anio_ref | anio==anio_ref-1 | anio==anio_ref-2) %>% 
@@ -1580,6 +1588,8 @@ Al analizar las **pernoctaciones de no residentes**, **`r ranking_nores[nrow(ran
 
 ```{r eoh7 }
 
+#Tabla en gt:
+
 eoh7 %>%
   gt()%>%
   gt_theme_dnmye() %>%
@@ -1603,9 +1613,7 @@ eoh7 %>%
     missing_text = "///") %>%
   tab_source_note(
     source_note = md(
-      "**Fuente:** Encuesta de Ocupación Hotelera (EOH) - (DNMyE e INDEC).")) #%>% 
-  #tab_options(container.height = 600,
-              #container.overflow.y = T) 
+      "**Fuente:** Encuesta de Ocupación Hotelera (EOH) - (DNMyE e INDEC)."))
 
 rm(eoh7, ranking, ranking_nores, ranking_res)
 
@@ -1613,7 +1621,7 @@ rm(eoh7, ranking, ranking_nores, ranking_res)
 
 ```{r}
 
-# Tabla eoh 8
+# Insumo:
 
 eoh8 <- eoh %>%
   filter(anio==anio_ref | anio==anio_ref-1 | anio==anio_ref-2) %>%
@@ -1661,6 +1669,8 @@ Finalmente, **los viajeros no residentes** presentaron su mayor volumen en **`r 
 
 ```{r eoh8  }
 
+#Tabla en gt
+
 eoh8 %>%
   gt()%>%
   gt_theme_dnmye() %>%
@@ -1681,15 +1691,15 @@ eoh8 %>%
              columns = c(3,4,6,7,9,10) ~ px(100)) %>%
   sub_missing(
     columns = everything(),
-    missing_text = "///") #%>% 
-  #tab_options(container.height = 600,
-              #container.overflow.y = T)
+    missing_text = "///")
 
 rm(eoh8, ranking, ranking_res, ranking_nores)
 
 ```
 
 ```{r}
+
+#Insumo:
 
 eoh9 <- eoh %>%
   filter(anio==anio_ref | anio==anio_ref-1) %>%
@@ -1715,6 +1725,8 @@ eoh9 <- eoh %>%
 
 ```{r eoh9  }
 
+#Tabla en gt:
+
 eoh9 %>%
   gt()%>%
   gt_theme_dnmye() %>%
@@ -1734,9 +1746,7 @@ eoh9 %>%
     missing_text = "///") %>%
   tab_source_note(
     source_note = md(
-      "**Fuente:** Encuesta de Ocupación Hotelera (EOH) - (DNMyE e INDEC).")) #%>% 
-  #tab_options(container.height = 600,
-              #container.overflow.y = T)
+      "**Fuente:** Encuesta de Ocupación Hotelera (EOH) - (DNMyE e INDEC)."))
 
 rm(eoh9)
 
@@ -1746,6 +1756,7 @@ rm(eoh9)
 
 # Cuadro eoh10 Estadía promedio según región de destino y condición de residencia. Variación interanual. 
 
+#Insumo:
 
 eoh10_total <- eoh %>%
   filter(anio==anio_ref | anio==(anio_ref-1) | anio==(anio_ref-2)) %>% 
@@ -1837,6 +1848,8 @@ En el caso de los **no residentes**, las estadías más altas se presentaron en 
 
 #Estadía promedio según región de destino y condición de residencia.
 
+#Tabla en gt:
+
 eoh10_total %>%
   gt()%>%
   gt_theme_dnmye() %>% 
@@ -1881,6 +1894,8 @@ rm(eoh10_total,eoh10,ranking,ranking_res,ranking_nores)
 
 ```{r}
 
+#Insumo:
+
 eoh11 <- eoh %>%
   filter(anio==anio_ref) %>% 
   group_by(region_de_destino) %>% 
@@ -1909,6 +1924,8 @@ eoh11 <- eoh %>%
 ```{r eoh11, fig.cap=glue("Estadía promedio (en noches) de los viajeros, según condición de residencia . Año {anio_ref}.")} 
 
 #Estadía promedio de los viajeros, según condición de residencia.
+
+# Gráfico en ggplot
 
 ggplot(data = eoh11 %>% mutate(indicador=factor(indicador,levels = c("Total","Residentes","No Residentes"))), aes(y=valor,x=region_de_destino,label=format(valor,decimal.mark = ","),fill=indicador,group=indicador))+
   geom_bar(stat='identity',position="dodge")+
@@ -1940,8 +1957,9 @@ rm(eoh11)
 
 ```{r}
 
-#Pernoctaciones según residencia por región de destino por mes (MUCHA INFORMACIÓN)
+#Pernoctaciones según residencia por región de destino por mes
 
+#Insumo
 
 eoh12 <- eoh %>%
   filter(anio==anio_ref) %>% 
@@ -2026,7 +2044,7 @@ En la región **Buenos Aires**, la mayor cantidad de pernoctes de residentes se 
 
 ```{r eoh12ba, fig.cap=glue("Pernoctaciones (en miles) según residencia. Buenos Aires. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh12 %>% filter(indicador !="Totales" & region_de_destino=="Buenos Aires"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2068,7 +2086,7 @@ En **CABA**, **`r ranking_caba_res[nrow(ranking_caba_res),3]`** fue el mes con m
 
 ```{r eoh12caba, fig.cap=glue("Pernoctaciones (en miles) según residencia.Ciudad de Buenos Aires. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh12 %>% filter(indicador !="Totales" & region_de_destino=="CABA"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2110,7 +2128,7 @@ En **Córdoba**, **`r ranking_cor_res[nrow(ranking_cor_res),3]`** presentó la m
 
 ```{r eoh12cord, fig.cap=glue("Pernoctaciones (en miles) según residencia.Córdoba. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh12 %>% filter(indicador !="Totales" & region_de_destino=="Córdoba"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2151,7 +2169,7 @@ Fue **`r ranking_cuy_res[nrow(ranking_cuy_res),3]`** el mes con más cantidad de
 
 ```{r eoh12cuyo, fig.cap=glue("Pernoctaciones (en miles) según residencia. Cuyo. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh12 %>% filter(indicador !="Totales" & region_de_destino=="Cuyo"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2192,7 +2210,7 @@ En la región **Litoral**, el mayor valor de pernoctes residentes se registró e
 
 ```{r eoh12lito, fig.cap=glue("Pernoctaciones (en miles) según residencia. Litoral. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh12 %>% filter(indicador !="Totales" & region_de_destino=="Litoral"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2233,7 +2251,7 @@ Pasando a la región **Norte**, **`r ranking_nor_res[nrow(ranking_nor_res),3]`**
 
 ```{r eoh12norte, fig.cap=glue("Pernoctaciones (en miles) según residencia. Norte. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh12 %>% filter(indicador !="Totales" & region_de_destino=="Norte"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2274,7 +2292,7 @@ Finalmente, en **Patagonia**, **`r ranking_pat_res[nrow(ranking_pat_res),3]`** p
 
 ```{r eoh12pata, fig.cap=glue("Pernoctaciones (en miles) según residencia. Patagonia. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh12 %>% filter(indicador !="Totales" & region_de_destino=="Patagonia"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2314,6 +2332,8 @@ rm(ranking_pat_res,ranking_pat_nores)
 
 
 ```{r}
+
+#Insumo:
 
 eoh13 <- eoh %>%
   filter(anio==anio_ref) %>% 
@@ -2396,7 +2416,7 @@ Al analizar la estacionalidad de los viajeros en las regiones, se observa que en
 
 ```{r eoh13ba, fig.cap=glue("Viajeros (en miles) según residencia. Buenos Aires. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh13 %>% filter(indicador !="Totales" & region_de_destino=="Buenos Aires"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2437,7 +2457,7 @@ En **CABA**, **`r ranking_caba_res[nrow(ranking_caba_res),3]`** evidenció el ma
 
 ```{r eoh13caba, fig.cap=glue("Viajeros (en miles) según residencia.Ciudad de Buenos Aires. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh13 %>% filter(indicador !="Totales" & region_de_destino=="CABA"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2478,7 +2498,7 @@ En **Córdoba**, **`r ranking_cor_res[nrow(ranking_cor_res),3]`** lideró el ran
 
 ```{r eoh13cord, fig.cap=glue("Viajeros (en miles) según residencia.Córdoba. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh13 %>% filter(indicador !="Totales" & region_de_destino=="Córdoba"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2519,7 +2539,7 @@ El mes que se destacó en la **Región Cuyo** fue **`r ranking_cuy_res[nrow(rank
 
 ```{r eoh13cuyo, fig.cap=glue("Viajeros (en miles) según residencia. Cuyo. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh13 %>% filter(indicador !="Totales" & region_de_destino=="Cuyo"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2560,7 +2580,7 @@ En **Litoral**, el mayor volumen de viajeros residentes se registró en **`r ran
 
 ```{r eoh13lito, fig.cap=glue("Viajeros (en miles) según residencia. Litoral. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh13 %>% filter(indicador !="Totales" & region_de_destino=="Litoral"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2601,7 +2621,7 @@ En la región **Norte**, **`r ranking_nor_res[nrow(ranking_nor_res),3]`** fue el
 
 ```{r eoh13norte, fig.cap=glue("Viajeros (en miles) según residencia. Norte. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh13 %>% filter(indicador !="Totales" & region_de_destino=="Norte"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2642,7 +2662,7 @@ Por último, en **Patagonia**, el mes con mayor cantidad de viajeros residentes 
 
 ```{r eoh13pata, fig.cap=glue("Viajeros (en miles) según residencia. Patagonia. Año {anio_ref}.")}
 
-#Ggplot para pernoctaciones totales con facet por región (dato chequeado)
+#Gráfico en ggplot:
 
 ggplot(data=eoh13 %>% filter(indicador !="Totales" & region_de_destino=="Patagonia"),
        aes(x=indice_de_tiempo,y=valor/1000,color=indicador, label=format(round(valor/1000,1),decimal.mark = ",")))+
@@ -2682,6 +2702,8 @@ rm(ranking_pat_res,ranking_pat_nores)
 ### Análisis por tipo de alojamiento
 
 ```{r}
+
+#Insumo:
 
 eoh14_total <- eoh %>%
   filter(anio==anio_ref | anio==anio_ref-1 | anio==anio_ref-2) %>% 
@@ -2778,6 +2800,8 @@ En el **agregado de establecimientos hoteleros** (1 a 5 estrellas, más apart ho
 
 ```{r eoh14 }
 
+#Tabla en gt:
+
 eoh14 %>%
   gt()%>%
   gt_theme_dnmye() %>% 
@@ -2832,6 +2856,8 @@ rm(eoh14,rankinghotel,ranking4_5,ranking3,ranking1_2,rankingpara)
 
 ```{r}
 
+#Insumo:
+
 eoh15_total <- eoh %>%
   filter(anio==anio_ref | anio==anio_ref-1 | anio==anio_ref-2) %>% 
   group_by(anio,categoria_del_hotel) %>% 
@@ -2879,8 +2905,6 @@ eoh15 <- eoh %>%
          `para_hoteles`=round(`para_hoteles`,0))
 
 
-# select(region_de_destino,total_hoteleros,var_1,`4_5_est`,var_2,`3_est`,
-#        var_3,`1_2_est`,var_4,para_hoteles,var_5) 
 
 if (anio_ref==2021) {
   eoh15 <- eoh15 %>% select(region_de_destino,total_hoteleros,var_1,var_1b,`4_5_est`,var_2,var_2b,`3_est`,
@@ -2939,7 +2963,7 @@ En los establecimientos de **1 y 2 estrellas**, **`r ranking1_2[nrow(ranking1_2)
 
 ```{r eoh15 }
 
-#Viajeros por categoría, según región de destino.
+#Tabla en gt:
 
 eoh15 %>%
   gt()%>%
@@ -2995,6 +3019,8 @@ rm(eoh15,rankinghotel,ranking4_5,ranking3,ranking1_2,rankingpara)
 
 ```{r}
 
+#Insumo:
+
 eoh16 <- eoh %>%
   filter(anio==anio_ref | anio==(anio_ref-1)| anio==(anio_ref-2)) %>% 
   group_by(anio,categoria_del_hotel) %>% 
@@ -3036,6 +3062,8 @@ Sin diferenciar por región de destino, en `r anio_texto` fueron los establecimi
 
 #Pernoctaciones y viajeros hospedados en establecimientos hoteleros y parahoteleros por categoría del establecimiento.
 
+#Gra´fico en ggplot:
+
 ggplot(data = eoh16%>% 
          mutate(anio=factor(anio,levels = c(anio_ref-2,anio_ref-1,anio_ref)),
                 categoria_del_hotel=factor(categoria_del_hotel,
@@ -3070,6 +3098,8 @@ rm(eoh16,ranking_pern,ranking_viaj)
 ```
 
 ```{r}
+
+#Insumo:
 
 eoh17_hoteles <- eoh %>%
   filter((anio==anio_ref | anio==(anio_ref-1) | anio==(anio_ref-2)) & categoria_del_hotel!="Para Hoteles") %>% 
@@ -3158,6 +3188,8 @@ Los establecimientos **`r ranking_res[nrow(ranking_res),1]`** sumaron `r format(
 
 ```{r eoh17, fig.cap=glue("Pernoctes, por categoría según condición de residencia. Año {anio_ref}.")}
 
+#Tabla en gt:
+
 eoh17a %>% 
   gt()%>%
   gt_theme_dnmye() %>% 
@@ -3204,6 +3236,8 @@ rm(eoh17a,ranking_nores,ranking_res)
 
 ```{r}
 
+#Para el texto:
+
 ranking_res <- eoh17b %>%
   select(1,5:7) %>%
   filter(categoria_del_hotel!="TOTAL HOTELEROS") %>% 
@@ -3231,6 +3265,8 @@ En el caso de los viajeros, el análisis de **su distribución según residencia
 
 
 ```{r eoh17b }
+
+#Tabla en gt:
 
 eoh17b %>% 
   gt()%>%
@@ -3268,9 +3304,7 @@ eoh17b %>%
       cell_text(weight =  "bold")
     ),
     locations = cells_body(rows = c(1,5)
-    )) #%>% 
-  #tab_options(container.height = 600,
-              #container.overflow.y = T)
+    )) 
 
 rm(eoh17b, ranking_res,ranking_nores)
 
@@ -3279,6 +3313,8 @@ rm(eoh17b, ranking_res,ranking_nores)
 ### Análisis de la oferta
 
 ```{r}
+
+#Insumo:
 
 eoh18 <- eoh %>%
   filter(anio>=2010 & anio<=anio_ref) %>% 
@@ -3327,7 +3363,7 @@ En el año `r anio_texto`, **el total de establecimientos hoteleros y parahotele
 
 ```{r eoh18 }
 
-#Tabla GT (dato chequeado)
+#Tabla GT:
 
 eoh18 %>%
   gt()%>%
@@ -3373,6 +3409,8 @@ rm(eoh18)
 
 ```{r}
 
+#Insumo:
+
 eoh19 <- eoh %>%
   filter(anio==anio_ref |anio==anio_ref-1 |anio==anio_ref-2) %>% 
   group_by(anio,region_de_destino) %>% 
@@ -3412,6 +3450,8 @@ La región **`r ranking_est[nrow(ranking_est),1]`** presentó la mayor cantidad 
 ```{r eoh19, fig.cap=glue("Cantidad de establecimientos promedio, plazas disponibles y ocupación de plazas, según región de destino. Año {anio_ref}.")}
 
 
+#Tabla en gt:
+
 eoh19 %>% 
   mutate(var_3=var_3*100,
          var_3b=var_3b*100) %>%
@@ -3449,6 +3489,8 @@ rm(eoh19,ranking_est,ranking_plazas)
 
 
 ```{r}
+
+#Insumo:
 
 eoh20_hoteleros <- eoh %>%
   filter((anio==anio_ref | anio==(anio_ref-1) | anio==(anio_ref-2)) & categoria_del_hotel!="Para Hoteles") %>%  
@@ -3516,6 +3558,8 @@ La categoría hotelera con más establecimientos disponibles fueron los clasific
 
 ```{r eoh20 }
 
+#Tabla en gt:
+
 eoh20 %>%
   mutate(var_3=var_3*100,
          var_3b=var_3b*100) %>% 
@@ -3536,9 +3580,6 @@ eoh20 %>%
   fmt_number(columns = c(2,5), decimals = 0, dec_mark = ",", sep_mark = ".") %>%
   fmt_percent(columns = c(3,4,6:8), decimals = 1, dec_mark = ",", sep_mark = ".") %>%
   fmt_number(columns = c(9,10), decimals = 1, dec_mark = ",", sep_mark = ".") %>%
-  # cols_width(columns = c(2,5,8) ~ px(120),
-  #            columns = c(3,4,6,7,9,10) ~ px(80),
-  #            columns = c(1) ~ px(120)) %>%
   sub_missing(
     columns = everything(),
     missing_text = "///") %>%
@@ -3554,9 +3595,7 @@ eoh20 %>%
       cell_text(weight =  "bold")
     ),
     locations = cells_body(rows = c(1,5)
-    )) #%>% 
-  #tab_options(container.height = 600,
-              #container.overflow.y = T)
+    ))
 
 rm(eoh20, ranking_est, ranking_plazas)
 
@@ -3564,6 +3603,8 @@ rm(eoh20, ranking_est, ranking_plazas)
 
 
 ```{r}
+
+#Insumo:
 
 eoh21 <- eoh %>%
   filter(anio==anio_ref |anio==anio_ref-1 |anio==anio_ref-2) %>% 
@@ -3625,6 +3666,8 @@ Al analizar la estacionalidad de la oferta, se observa que en `r anio_texto` el 
 
 ```{r eoh21 }
 
+#Tabla en gt:
+
 eoh21 %>% 
   gt()%>%
   gt_theme_dnmye() %>% 
@@ -3665,6 +3708,8 @@ rm(eoh21, ranking_est,ranking_plazas)
 
 ```{r}
 
+#Insumo:
+
 eoh22 <- eoh %>%
   filter(anio>=2018 & anio<=anio_ref) %>% 
   group_by(anio) %>% 
@@ -3691,6 +3736,7 @@ if (anio_ref==2021) {
 
 ```{r eoh22, fig.cap=glue("Tasa de ocupación en plazas en fines de semana (FDS*). Años 2018-{anio_ref}.")}
 
+#Tabla en gt:
 
 eoh22 %>% 
   mutate(var_1=var_1*100,
@@ -3736,6 +3782,8 @@ rm(eoh22)
 
 
 ```{r}
+
+#Insumo:
 
 eoh23_a <- eoh %>%
   filter(anio>=2018 & anio<=anio_ref) %>%
@@ -3788,6 +3836,7 @@ Desagregar la TOP de los fines de semana **por categoría** arroja que los estab
 
 ```{r eoh23, fig.cap=glue("Tasa de ocupación en plazas en fines de semana, según categoría. Año {anio_ref}.")}
 
+#Tabla en gt:
 
 eoh23 %>%
   mutate(var_1=var_1*100,
@@ -3820,9 +3869,7 @@ eoh23 %>%
     source_note = "(*) Datos correspondientes a los días viernes y sábados del mes") %>%
   tab_source_note(
     source_note = md(
-      "**Fuente:** Encuesta de Ocupación Hotelera (EOH) - (DNMyE e INDEC).")) #%>% 
-  #tab_options(container.height = 600,
-              #container.overflow.y = T)
+      "**Fuente:** Encuesta de Ocupación Hotelera (EOH) - (DNMyE e INDEC).")) 
 
 rm(eoh23, ranking)
 
@@ -3830,6 +3877,8 @@ rm(eoh23, ranking)
 
 
 ```{r}
+
+#Insumo:
 
 eoh24_a <- eoh %>%
   filter(anio>=2018 & anio<=anio_ref) %>%
@@ -3880,6 +3929,7 @@ Cuando los datos son diseccionados por **región**, se observa que **`r ranking[
 
 ```{r eoh24, fig.cap="Tasa de ocupación en plazas en fines de semana (*), según región de destino."}
 
+#Tabla en gt:
 
 eoh24 %>%
   mutate(var_1=var_1*100,
@@ -3922,6 +3972,8 @@ rm(eoh24, ranking)
 
 
 ```{r}
+
+#Insumo:
 
 eoh25 <- eoh %>%
   filter(anio==anio_ref |anio==anio_ref-1 |anio==anio_ref-2) %>% 
@@ -3967,6 +4019,8 @@ Para finalizar, se destaca el mes de **`r ranking[nrow(ranking),1]`** por presen
 
 
 ```{r eoh25, fig.cap=glue("Tasas de ocupación en plazas en fines de semana (*),por mes. Año {anio_ref}.")}
+
+#Tabla en gt:
 
 eoh25 %>%
   mutate(var_3=var_3*100,
