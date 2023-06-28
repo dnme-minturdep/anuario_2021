@@ -133,21 +133,18 @@ datos_tabla1 <- parques_nacionales %>%
          var_ia_res = round(residentes/lag(residentes, 1) -1 ,3),
          var_ia_nores = round(no_residentes/lag(no_residentes, 1) -1 ,3)
   )
+
+##VARIABLES PARA TEXTO
+
 vartext <- datos_tabla1 %>% 
   filter(anio== Anio) %>% 
   select(var_ia_res) %>% 
   pull() 
 
-#ifelse(vartext > 0, "los turistas residentes presentaron un crecimiento del", " los turistas residentes cayeron un") 
-
-#vartext %>% 
-#  lbl_percent()
-
 
 vartextnores <- datos_tabla1 %>% 
   filter(anio== Anio) %>% 
   select(var_ia_nores) %>% 
-#para traer el valor, se usa el pull  
   pull()  
 
 
@@ -162,13 +159,11 @@ totaltur <- datos_tabla1 %>%
   pull()/1000000 
   
 
-#ifelse(total>0, "un incremento del", "tuvieron una caída del")
 
-#ifelse(vartextnores > 0, "registraron un crecimiento del", " disminuyeron un") 
 
 ```
 
-En el año `r as.character(Anio)` se registraron `r lbl_decimal(totaltur, decimales=2) ` millones de visitas a los Parques Nacionales,`r ifelse(total>0,  "con un incremento del", "tuvieron una caída del")` `r lbl_percent(total)` respecto del `r as.character(Anio -1)`.
+En el año `r as.character(Anio)` se registraron `r lbl_decimal(totaltur, decimales=2) ` millones de visitas a los Parques Nacionales,`r ifelse(total>0,   "con un incremento del", "tuvieron una caída del")` `r lbl_percent(total)` respecto del `r as.character(Anio -1)`.
 
 ```{r graficoparques1, fig.cap=glue("Visitas a las áreas protegidas nacionales por condición de residencia. Serie histórica, en miles. Años 2008-{Anio}.")}
 grafico1
@@ -404,23 +399,17 @@ tabla_regiones1 <- rbind(datos_regiones, total_region, total_pais) %>%
          var_nores = (no_residentes_2021/no_residentes_2019)-1,
          region = str_to_sentence(region))
 
-
+##VARIABLES PARA TEXTO
 
 vartextreg <- tabla_regiones1 %>% 
   filter(parque_nacional== "Total país") %>% 
   select(var_res) %>% 
   pull() 
 
-#ifelse(vartextreg > 0, "los turistas residentes presentaron un incremento del", " los turistas residentes cayeron un") 
-
-#vartextreg %>% 
-#  lbl_percent()
-
 
 vartextreg_nores <- tabla_regiones1 %>% 
   filter(parque_nacional== "Total país") %>% 
- select(var_nores) %>% 
-#para traer el valor, se usa el pull  
+  select(var_nores) %>% 
   pull()  
 
 
@@ -430,15 +419,7 @@ totalreg <- tabla_regiones1 %>%
   pull()
   
 
-#ifelse(totalreg>0, "registraron un incremento del", "tuvieron una caída del")
 
-#ifelse(vartextreg_nores > 0, "registraron un crecimiento del", " disminuyeron un") 
-
-
-#totaltur <- datos_tabla1 %>% 
- # filter(anio==Anio) %>% 
-  #select(total) %>% 
-  #pull()/1000000 
 
 ```
 
@@ -525,16 +506,12 @@ total_pais_grafico2 <- parques_nacionales %>%
   filter(anio == Anio) %>% 
   mutate(residencia = "total", region = "Total")
 
+##VARIABLES PARA TEXTO
 
 vartext2 <- datos_pais_grafico2 %>% 
   filter(residencia== "residentes") %>% 
   select(var) %>% 
   pull() 
-
-#ifelse(vartext2 > 0, "el incremento del", " una caída de") 
-
-#vartext %>% 
-#  lbl_percent()
 
 
 vartexpatag <- datos_grafico2 %>% 
@@ -553,17 +530,10 @@ vartexnorte <- datos_grafico2 %>%
   pull()  
 
 
-#ifelse(total>0, "un crecimiento de las visitas", "tuvieron una caída del")
-
-#ifelse(vartexpatag > 0, "el crecimiento del", " disminuyeron un") 
-
-#ifelse(vartexlitoral > 0, "un incremento del", " disminuyeron un") 
-
-#ifelse(vartexnorte > 0, "un crecimiento del", " disminuyeron un") 
-
-
 datos_grafico2 <- rbind(datos_grafico2, total_grafico2,datos_pais_grafico2, total_pais_grafico2)
+
 ```
+
 
 Al considerar las visitas según condición de residencia, se observa que `r ifelse(vartext2 > 0, "el incremento del", " una caída de")` `r lbl_percent(vartext2)` en las visitas de los residentes se explica principalmente por `r ifelse(total>0, "un crecimiento de", "tuvieron una caída del")` las visitas de los parques de las regiones Patagonia, Litoral y Norte (`r lbl_percent(vartexpatag)`,  `r lbl_percent(vartexlitoral)` y `r lbl_percent(vartexnorte)`) respectivamente.
 
@@ -646,19 +616,20 @@ tabla_trim1 <- parques_nacionales %>%
   mutate(participacion = visitantes/total) %>% 
   ungroup() %>% 
   group_by(anio) 
+
+
+## VARIABLES PARA TEXTO
  
   part1 <- tabla_trim1 %>% 
   filter(trimestre== "IV Trim") %>% 
   select(participacion) %>% 
   pull() 
 
-#ifelse(part1 > 0, "se concentró el", " no llego a") 
-
-#part1 %>% 
-#  lbl_percent()         
+        
 
 
 ```
+
 
 Al analizar la estacionalidad, se observa que en el cuarto trimestre del `r as.character(Anio)` `r ifelse(part1 > 0, "se concentró el", " no llego a")` `r lbl_percent(part1)` de las visitas anuales, debido a la gradual flexibilización de las medidas sanitarias por el covid-19 que fueron aplicando las provincias especialmente a partir del segundo semestre del año.
 
@@ -875,58 +846,36 @@ tabla_3 <- tabla_regiones_trim %>%
   tab_caption(caption = glue("Visitas a los parques nacionales por región según trimestre. Años {Anio-2}-{Anio}."))
 
 
-#tabla_total_trim <- tabla_regiones_trim %>% 
- #filter(region == "País")
-  #select(trimestre, total_2021, residentes_2021, no_residentes_2021,
-         #var_total, var_res, var_nores,
-         #part_total, part_res, part_nores,
-        #total_2020, residentes_2020, no_residentes_2020,
-         #total_2019, residentes_2019, no_residentes_2019) %>% 
-  #arrange(match(region, c("País")), match(trimestre, c("Total","I Trim", "II Trim","III Trim","IV Trim")))
+## VARIABLES PARA TEXTO
 
  var4t <- tabla_regiones_trim %>% 
   filter(trimestre== "IV Trim", region =="País") %>% 
   select(var_total) %>% 
   pull() 
 
-#ifelse(var4t > 0, "se concentró el", " no llego a") 
 
-#var4t %>% 
-#lbl_percent()  
- 
- 
  var3t <- tabla_regiones_trim %>% 
   filter(trimestre== "III Trim", region =="País") %>% 
   select(var_total) %>% 
   pull() 
 
-#ifelse(var3t > 0, "se concentró el", " no llego a") 
 
-#var3t %>% 
-#lbl_percent() 
- 
  var1t <- tabla_regiones_trim %>% 
   filter(trimestre== "I Trim", region =="País") %>% 
   select(var_total) %>% 
   pull() 
 
-#ifelse(var1t > 0, "se registró un incremento del", " se registró una caída de") 
 
-#var1t %>% 
-#lbl_percent( 
- 
  
  var2t <- tabla_regiones_trim %>% 
   filter(trimestre== "II Trim", region =="País") %>% 
   select(var_total) %>% 
   pull() 
 
-#ifelse(var2t > 0, "fue el que mas visitas registró", " fue el que menos visitas registró") 
 
-#var2t %>% 
-#lbl_percent()
 
 ```
+
 
 En el tercer y cuarto trimestre se registraron en el país los mayores incrementos en las visitas respecto del mismo período del año anterior (`r lbl_percent(var3t)` y  `r lbl_percent(var4t)` respectivamente).  
 
@@ -980,17 +929,17 @@ graf_5_4 <- datos_grafico3 %>%
         plot.caption  = element_text(size = 7)
   ) 
 
+## VARIABLES PARA TEXTO
+
  partmax <- datos_grafico3 %>% 
   filter(parque_nacional== "Iguazú") %>% 
   select(participacion) %>% 
   pull() 
 
-#ifelse(partmax > 0, "fue el que concentró el mayor número de visitas", " fue el que concentró el menor número de visitas") 
-
-#partmax %>% 
-#  `lbl_percent() ` 
+ 
 
 ```
+
 
 Al observar la participación de los 10 parques con mayor volumen de visitas en el `r as.character(Anio)`, el 70% se concentró en cuatro parques nacionales: el PN Iguazú `r ifelse(partmax > 0, "fue el que concentró el mayor número de visitas", " fue el que concentró el menor número de visitas") ` `r lbl_percent(partmax)`
 , siguiéndole en importancia tres parques de la región Patagonia:
@@ -1039,6 +988,8 @@ fig_5_5 <- datos_grafico4 %>%
   labs(x="",y="", fill = "",
        caption = "Fuente: DNMyE en base a datos de la APN.")
 ```
+
+
 En el  `r as.character(Anio)` la mayor proporción de visitas que recibieron los Parques Nacionales fueron de turistas residentes, debido al proceso de recuperación gradual de los viajes a nivel mundial después de la pandemia. No obstante, en los PN Iguazú, Los Glaciares y Tierra del Fuego, la participación de turistas no residentes alcanzó a explicar aproximadamente el 10% de las visitas totales del `r as.character(Anio)`, por la gradual apertura de las fronteras del país pospandemia.
 
 
