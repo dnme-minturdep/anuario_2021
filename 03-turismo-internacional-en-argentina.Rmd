@@ -2012,6 +2012,7 @@ A continuación se presentarán datos relacionados al turismo receptivo en los p
 
 ```{r}
 
+#Se levantan las bases
 
 eti_e <- herramientas::read_file_srv("/srv/DataDNMYE/eti/bases/eti_nr_2009_2023.rds") %>% 
   filter(p3_3<=anio_ref & p3_3>=2010 & vis==2 & wpf>0) 
@@ -2159,7 +2160,7 @@ rm(etie1)
 ```
 
 ```{r}
-#Ezeiza y aeroparque (dato chequeado)
+#Ezeiza y aeroparque
 
 #Insumo:
 
@@ -2226,11 +2227,6 @@ etie2 %>%
   cols_align(
     align = "center",
     columns = 2:3) %>%
-  # tab_header(
-  #   subtitle = 
-  #     glue("Ezeiza y Aeroparque, {anio_ref}."),
-  #   title =""
-  # ) %>%
   tab_source_note(
     source_note = md("**Nota:** Datos que corresponden al 1er y 4to trim. de 2021, en el resto de los trims. no se realizó el relevamiento.")) %>%
   tab_source_note(
@@ -2252,7 +2248,7 @@ rm(etie2,ranking)
 
 ```{r}
 
-#AEP Córdoba (dato chequeado)
+#AEP Córdoba
 
 #Insumo:
 
@@ -2340,7 +2336,7 @@ rm(etie3,ranking)
 
 ```{r}
 
-# Puerto de buenos aires (dato chequeado)
+# Puerto de buenos aires
 
 #Insumo:
 
@@ -2420,7 +2416,7 @@ rm(etie4,ranking)
 ```
 
 ```{r}
-### Aep Mendoza (dato chequeado)
+### Aep Mendoza
 
 #Insumo:
 
@@ -2498,7 +2494,7 @@ rm(etie5,ranking)
 
 ```{r}
 
-###Cristo Redentor (dato chequeado)
+###Cristo Redentor
 
 #Insumo:
 
@@ -2571,7 +2567,7 @@ etie6 %>%
 
 ```{r}
 
-# Llegadas de turistas no residentes por motivo de viaje (dato chequeado)
+# Llegadas de turistas no residentes por motivo de viaje
 
 #Insumo:
 
@@ -2670,7 +2666,7 @@ rm(etie7, ranking_total, ranking_eya,ranking_cor,
 
 ```{r}
 
-# Llegadas de turistas no residentes por tipo alojamiento (dato chequeado)
+# Llegadas de turistas no residentes por tipo alojamiento
 
 #Insumo:
 
@@ -2796,7 +2792,7 @@ rm(etie8, ranking_total, ranking_eya,ranking_cor,
 
 ```{r}
 
-# Llegadas de turistas no residentes según USO DE PAQUETE
+# Llegadas de turistas no residentes según USO DE PAQUETE TURISTICO
 
 #Insumo:
 
@@ -2822,7 +2818,6 @@ etie9 <- eti_e_perfiles %>%
                        paq==1~"Utilizó paquete")) %>% 
   select(paq,`TOTAL`,`Ezeiza y Aeroparque`,`Aep. Córdoba`,`Puerto de Buenos Aires`,
          `Aep. Mendoza`,`Cristo Redentor`) %>% 
-  #mutate_all(~replace(., is.na(.), 0)) %>% 
   pivot_longer(cols=c(2:7),
                 names_to = "paso_final",
                 values_to="prop_") %>% 
@@ -2869,8 +2864,7 @@ ggplot(data=etie9 %>% mutate(paq=factor(paq,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face = "bold"),
@@ -2888,7 +2882,7 @@ rm(etie9)
 
 ```{r}
 
-#Cuadro 223, Llegadas, gasto total, gasto por viajero, pernoctaciones y estadÍa media de turistas no residentes
+#Llegadas, gasto total, gasto por viajero, pernoctaciones y estadÍa media de turistas no residentes
 
 #Insumo:
 
@@ -3094,8 +3088,7 @@ ggplot(data=etie11 %>% mutate(motivo_viaje=factor(motivo_viaje,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal"),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face = "bold"),
@@ -3189,8 +3182,7 @@ ggplot(data=etie12 %>% mutate(alojamiento=factor(alojamiento,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal"),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face = "bold"),
@@ -3268,8 +3260,7 @@ ggplot(data=etie13 %>% mutate(paq=factor(paq,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-    plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
     plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
     axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
     plot.title=element_text(hjust = 0,face = "bold"),
@@ -3368,8 +3359,7 @@ ggplot(data=etie14 %>% mutate(motivo_viaje=factor(motivo_viaje,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal"),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face = "bold"),
@@ -3421,7 +3411,6 @@ ranking_pue <- etie15 %>% filter(paso_final=="Puerto de Buenos Aires") %>% arran
 ranking_cto <- etie15 %>% filter(paso_final=="Cristo Redentor") %>% arrange(prop_)
 
 
-
 ```
 
 La distribución de los pernoctes según **principal tipo de alojamiento utilizado** arroja que la mayor cantidad de pernoctes fueron de turistas hospedados en **"`r ranking_total[nrow(ranking_total),2]`"** (`r format(round(1*ranking_total[nrow(ranking_total),3],1),decimal.mark = ",",big.mark = ".")`%).
@@ -3459,8 +3448,7 @@ ggplot(data=etie15 %>% mutate(alojamiento=factor(alojamiento,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal"),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face = "bold"),
@@ -3538,8 +3526,7 @@ ggplot(data=etie16 %>% mutate(paq=factor(paq,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-    plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
     plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
     axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
     plot.title=element_text(hjust = 0,face = "bold"),
@@ -3647,7 +3634,6 @@ Al analizar las **actividades realizadas** en la Argentina, se observa que el `r
 ```{r eti17, fig.cap=glue("Participación porcentual de las actividades realizadas según lugar de residencia. Total de pasos relevados. Año {anio_ref}.")}
 
 
-
 #Gráfico:
 
 ggplot(data=etie17a %>% mutate(actividad=factor(actividad,levels = ranking)),
@@ -3661,9 +3647,7 @@ ggplot(data=etie17a %>% mutate(actividad=factor(actividad,levels = ranking)),
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
-  #theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -3793,8 +3777,7 @@ ggplot(data=etie18 %>% mutate(actividad=factor(actividad,levels = ranking)),
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -3900,8 +3883,7 @@ ggplot(data=etie19 %>% filter(orig_eya %in% c("Bolivia","Brasil","Chile")) %>% m
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -3986,8 +3968,7 @@ ggplot(data=etie19 %>% filter(orig_eya %in% c("Resto América","Europa","Resto d
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -4010,8 +3991,6 @@ rm(etie19,ranking)
 ```{r}
 
 ###Aeropuerto de Córdoba (TOTAL)
-
-#Dato chequeado
 
 etie20 <- eti_e_perfiles %>%
   filter(p3_3==anio_ref,paso_final=="Aep. Córdoba") %>%
@@ -4115,8 +4094,7 @@ ggplot(data=etie20 %>% mutate(actividad=factor(actividad,levels = ranking)),
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -4212,8 +4190,7 @@ ggplot(data=etie21 %>% mutate (orig_cor=factor(orig_cor,levels =c("Brasil","Chil
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -4341,8 +4318,7 @@ ggplot(data=etie22 %>% mutate(actividad=factor(actividad,levels = ranking)),
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -4442,8 +4418,7 @@ ggplot(data=etie23 %>% mutate (orig_mdz=factor(orig_mdz,levels =c("Brasil",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -4572,8 +4547,7 @@ ggplot(data=etie24 %>% mutate(actividad=factor(actividad,levels = ranking)),
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-        plot.caption  = element_text(hjust = 0),
+  theme(plot.caption  = element_text(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -4719,8 +4693,7 @@ ggplot(data=etie25 %>% mutate (orig_puerto=factor(orig_puerto,levels =c("Uruguay
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_text(hjust = 0),
+  theme(plot.caption  = element_text(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -4851,8 +4824,7 @@ ggplot(data=etie26 %>% mutate(actividad=factor(actividad,levels = ranking)),
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -4995,8 +4967,7 @@ ggplot(data=etie27 %>% mutate (orig_cristo=factor(orig_cristo,levels =c("Chile",
        caption = "Fuenet: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -5174,8 +5145,7 @@ ggplot(data=etie28 %>% mutate (rubro=factor(rubro,levels = ranking),
        caption = "Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -5280,8 +5250,6 @@ En **Ezeiza y Aeroparque** el principal aspecto de influencia fue **"`r ranking_
 
 ```{r eti29, fig.cap=glue("Peso porcentual de los aspectos que influyeron a la hora de elegir la Argentina. Año {anio_ref}.")}
 
-
-
 #Gráfico:
 
 ggplot(data=etie29 %>% mutate (aspecto=factor(aspecto,levels = ranking),
@@ -5306,8 +5274,7 @@ ggplot(data=etie29 %>% mutate (aspecto=factor(aspecto,levels = ranking),
        caption = "Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   scale_fill_dnmye(reverse = TRUE)+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_text(hjust = 0),
+  theme(plot.caption  = element_text(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -5608,8 +5575,7 @@ ggplot(data=etie31 %>%mutate(destino = factor(destino,levels=orden)),
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -5757,8 +5723,7 @@ ggplot(data=etie32 %>%mutate(destino = factor(destino,levels=orden)),
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -5893,9 +5858,6 @@ etie33 <- etie33_p %>%
   rbind(etie33_v)
 
 
-
-
-
 ```
 
 En el **Aeropuerto de Mendoza**, el primer destino seleccionado por los turistas no residentes fue **`r etie33_v[nrow(etie33_v),1]`** (`r format(round(1*etie33_v[nrow(etie33_v),2],1),decimal.mark = ",",big.mark = ".")`% de los viajeros); sin embargo, la mayor cantidad de pernoctaciones se registró en el **resto de la provincia.**
@@ -5921,8 +5883,7 @@ ggplot(data=etie33 %>%mutate(destino = factor(destino,levels=orden)),
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_text(hjust = 0),
+  theme(plot.caption  = element_text(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -6081,8 +6042,7 @@ ggplot(data=etie34 %>%mutate(destino = factor(destino,levels=orden)),
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=16),
-        plot.caption  = element_text(hjust = 0),
+  theme(plot.caption  = element_text(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face="bold"),
@@ -6239,7 +6199,7 @@ rm(etia1)
 
 ```{r}
 
-#Ezeiza y aeroparque (dato chequeado)
+#Ezeiza y aeroparque
 
 #Insumo:
 
@@ -6304,11 +6264,6 @@ etia2 %>%
   cols_align(
     align = "center",
     columns = 2:3) %>%
-  # tab_header(
-  #   subtitle = 
-  #     glue("Ezeiza y Aeroparque, {anio_ref}."),
-  #   title =""
-  # ) %>%
   tab_source_note(
     source_note = md("**Nota:** Datos que corresponden al 1er y 4to trim. de 2021, en el resto de los trims. no se realizó el relevamiento.")) %>%
   tab_source_note(
@@ -6332,7 +6287,7 @@ rm(etia2,ranking)
 
 ```{r}
 
-#AEP Córdoba (dato chequeado)
+#AEP Córdoba
 
 #Insumo:
 
@@ -6375,7 +6330,7 @@ En el **Aeropuerto Internacional de Córdoba**, **`r ranking[nrow(ranking)-1,1]`
 ```{r etia3 }
 
 
-#Tabla GT ()
+#Tabla en GT
 
 etia3 %>%
   gt()%>%
@@ -6421,7 +6376,7 @@ rm(etia3,ranking)
 ```
 
 ```{r}
-# Puerto de buenos aires (dato chequeado)
+# Puerto de buenos aires
 
 #Insumo:
 
@@ -6471,7 +6426,6 @@ etia4 %>%
   fmt_percent(columns = c(3), decimals = 1, dec_mark = ",", sep_mark = ".") %>%
   tab_options(#table.font.size = 12,
     data_row.padding = px(3),
-    #column_labels.font.size = 14,
     column_labels.font.weight = "bold") %>% 
   cols_width(columns = c(1,2) ~ px(120),
              columns = c(3) ~ px(100)) %>%
@@ -6500,7 +6454,7 @@ rm(etia4,ranking)
 
 ```{r}
 
-### Aep Mendoza (dato chequeado)
+### Aep Mendoza
 
 #Insumo:
 
@@ -6579,7 +6533,7 @@ rm(etia5,ranking)
 
 ```{r}
 
-###Cristo Redentor (dato chequeado)
+###Cristo Redentor
 
 #Insumo:
 
@@ -6656,7 +6610,7 @@ rm(etia6,ranking)
 
 ```{r}
 
-# Llegadas de turistas no residentes por motivo de viaje (dato chequeado)
+# Llegadas de turistas no residentes por motivo de viaje
 
 #Insumo:
 
@@ -6735,8 +6689,7 @@ ggplot(data=etia7 %>% mutate(motivo=factor(motivo,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC)")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal"),
-    plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
     plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
     axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
     plot.title=element_text(hjust = 0,face = "bold"),
@@ -6756,7 +6709,7 @@ rm(etia7, ranking_total, ranking_eya,ranking_cor,
 
 ```{r}
 
-# Llegadas de turistas no residentes por tipo alojamiento (dato chequeado)
+# Llegadas de turistas no residentes por tipo alojamiento
 
 #Insumo:
 
@@ -6822,7 +6775,6 @@ ranking_cto <- etia8 %>% filter(paso_final=="Cristo Redentor") %>% arrange(prop_
                                alojamiento=="Otros"~"alojamientos que no son hoteleros ni casa de familiares o amigos"))
 
 
-
 ```
 
 Sin diferenciar la información por paso, el principal tipo de alojamiento utilizado por los turistas residentes en el país fue **"`r ranking_total[nrow(ranking_total),2]`"** (el `r format(round(1*ranking_total[nrow(ranking_total),3],1),decimal.mark = ",",big.mark = ".")`% del total de turistas utilizó este tipo de alojamiento); **mismo tipo de alojamiento se destacó en el resto de los pasos relevados**, menos en Córdoba, donde se posicionaron los establecimientos de 4 y 5 estrellas en primer lugar.
@@ -6831,9 +6783,7 @@ Sin diferenciar la información por paso, el principal tipo de alojamiento utili
 
 ```{r etia8, fig.cap=glue("Distribución de los turistas residentes según principal tipo de alojamiento, por paso. Año {anio_ref}.")}
 
-
 #Gráfico:
-
 
 ggplot(data=etia8 %>% mutate(alojamiento=factor(alojamiento,
                                                 levels = c("Casa flia/amigos",
@@ -6866,8 +6816,7 @@ ggplot(data=etia8 %>% mutate(alojamiento=factor(alojamiento,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-    plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
     plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
     axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
     plot.title=element_text(hjust = 0,face = "bold"),
@@ -6910,8 +6859,7 @@ etia9 <- eti_a_perfiles %>%
   pivot_wider(names_from = paso_final,
               values_from = prop_)  %>% 
   select(paq,`TOTAL`,`Ezeiza y Aeroparque`,`Aep. Córdoba`,`Puerto de Buenos Aires`,
-         `Aep. Mendoza`,`Cristo Redentor`) %>% 
-  #mutate_all(~replace(., is.na(.), 0)) %>% 
+         `Aep. Mendoza`,`Cristo Redentor`) %>%
   pivot_longer(cols=c(2:7),
                names_to = "paso_final",
                values_to="prop_") %>% 
@@ -6957,8 +6905,7 @@ ggplot(data=etia9 %>% mutate(paq=factor(paq,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-    plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
     plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
     axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
     plot.title=element_text(hjust = 0,face = "bold"),
@@ -7364,8 +7311,7 @@ ggplot(data=etia13 %>% mutate(paq=factor(paq,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-    plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
     plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
     axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
     plot.title=element_text(hjust = 0,face = "bold"),
@@ -7425,8 +7371,6 @@ Cuando se diferencia por paso, el panorama es variopinto: en **Ezeiza y Aeroparq
 
 ```{r etia14, fig.cap=glue("Distribución de los pernoctes residentes según motivo de viaje, por paso. Año {anio_ref}.")}
 
-
-
 #Gráfico:
 
 ggplot(data=etia14 %>% mutate(motivo=factor(motivo,
@@ -7460,8 +7404,7 @@ ggplot(data=etia14 %>% mutate(motivo=factor(motivo,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal"),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face = "bold"),
@@ -7476,13 +7419,11 @@ ggplot(data=etia14 %>% mutate(motivo=factor(motivo,
 rm(etia14,ranking_total,ranking_eya,ranking_cor,
    ranking_mza,ranking_pue,ranking_cto)
 
-
-
 ```
 
 ```{r}
 
-#  Gasto total de no residentes por tipo alojamiento 
+# Gasto total de no residentes por tipo alojamiento 
 
 #Insumo:
 
@@ -7524,8 +7465,6 @@ La distribución de los pernoctes de los turistas residentes que viajaron al ext
 
 ```{r etia15, fig.cap=glue("Distribución de los pernoctes residentes según principal tipo de alojamiento, por paso. Año {anio_ref}.")}
 
-
-
 #Gráfico:
 
 ggplot(data=etia15 %>% mutate(alojamiento=factor(alojamiento,
@@ -7557,8 +7496,7 @@ ggplot(data=etia15 %>% mutate(alojamiento=factor(alojamiento,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal"),
-        plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
         plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
         axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
         plot.title=element_text(hjust = 0,face = "bold"),
@@ -7612,7 +7550,6 @@ Tanto a nivel total como en la mayoría de los pasos, sobre el total de las pern
 
 ```{r etia16, fig.cap=glue("Distribución de los pernoctes residentes según utilización de paquete turístico, por paso. Año {anio_ref}.")}
 
-
 #Gráfico:
 
 ggplot(data=etia16 %>% mutate(paq=factor(paq,
@@ -7636,8 +7573,7 @@ ggplot(data=etia16 %>% mutate(paq=factor(paq,
        colour="",
        caption = "Fuente: Encuesta de Turismo Internacional (ETI) - (DNMyE e INDEC).")+
   theme_minimal()+
-  theme(#text = element_text(family = "Encode Sans Normal",size=20),
-    plot.caption  = element_markdown(hjust = 0),
+  theme(plot.caption  = element_markdown(hjust = 0),
     plot.subtitle=element_text(colour = dnmye_colores("gris oscuro")),
     axis.title.y = element_text(colour = dnmye_colores("gris oscuro")),
     plot.title=element_text(hjust = 0,face = "bold"),
