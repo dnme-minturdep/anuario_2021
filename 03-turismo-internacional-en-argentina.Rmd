@@ -78,7 +78,7 @@ base_visitantes <- base_visitantes %>%
   filter(anio <= anio_ref) %>% 
   group_by(anio,mes,turismo_internac,
                          tipo_visitante, pais_agrupado, destino_agrup, via) %>% 
-  summarise (casos_ponderados = round(sum(casos_ponderados)))  %>% 
+  summarise (casos_ponderados = sum(casos_ponderados))  %>% 
   ungroup()
  
 
@@ -159,7 +159,7 @@ emisivo_anual_pais <- rbind(emisivo_90_2015, emisivo_2016)
 serie_vis_r_actual <- base_visitantes %>% 
   filter (turismo_internac == "Receptivo") %>% 
   group_by (anio, tipo_visitante) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() 
 
 
@@ -185,7 +185,7 @@ var_prepandemia <- last(serie_vis_r$Turistas)/ serie_vis_r$Turistas[serie_vis_r$
      
 ```
 
-El total de  viajes de turistas no residentes en `r as.character(anio_ref)` fue de `r format( last(serie_vis_r$Turistas), big.mark = ".",decimal.mark = ",")`, con `r ifelse(last(serie_vis_r$var_interanual_tur)>0,"un aumento ","una caída")` interanual de un `r format(round(100 * abs (last(serie_vis_r$var_interanual_tur)), 1),decimal.mark = ",",big.mark = ".")`%. En comparación con 2019 (prepandemia), `r ifelse(var_prepandemia > 0, "aumentó", "cayó")` un `r format(round(100 * abs (var_prepandemia), 1),decimal.mark = ",",big.mark = ".")`%.
+El total de  viajes de turistas no residentes en `r as.character(anio_ref)` fue de `r format( last(serie_vis_r$Turistas), big.mark = ".",decimal.mark = ",", digits =0)`, con `r ifelse(last(serie_vis_r$var_interanual_tur)>0,"un aumento ","una caída")` interanual de un `r format(round(100 * abs (last(serie_vis_r$var_interanual_tur)), 1),decimal.mark = ",",big.mark = ".")`%. En comparación con 2019 (prepandemia), `r ifelse(var_prepandemia > 0, "aumentó", "cayó")` un `r format(round(100 * abs (var_prepandemia), 1),decimal.mark = ",",big.mark = ".")`%.
 
 ```{r ti1}
 
@@ -279,7 +279,7 @@ graf_1.1_anual
 g_1.2 <- base_visitantes %>% 
   filter (turismo_internac == "Receptivo", tipo_visitante == "Turistas", (anio == anio_ref | anio == anio_ref-1)) %>% 
   group_by (anio, pais_agrupado) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() 
  
 g_1.3_texto_r <- g_1.2 %>% 
@@ -342,9 +342,9 @@ Como se observa en el siguiente gráfico, en el año `r as.character(anio_ref)`,
 
 ```{r ti4, fig.cap= glue("Viajes de turistas no residentes por lugar de residencia por año. Total país. Años {anio_ref-1}-{anio_ref}.")}
 
-graf_1.2 <- ggplot(g_1.2, aes(x= pais_agrupado, y = tur)) +   
+graf_1.2 <- ggplot(g_1.2, aes(x= pais_agrupado, y = round(tur,0))) +   
 geom_col(aes(fill = as_factor(anio)), position = "dodge") +
-geom_label(aes(label = format(tur, big.mark = ".", decimal.mark = ","), group = anio),
+geom_label(aes(label = format(tur, big.mark = ".", decimal.mark = ",", digits = 0), group = anio),
            label.padding =  unit(0.2, "lines"),
            position = position_dodge(width = 1),
            vjust = -0.05,
@@ -385,7 +385,7 @@ En comparación con el año 2019, las variaciones rondan el -95%, comenzando muy
 c_1.2_pais <- base_visitantes %>% 
 filter (turismo_internac == "Receptivo", anio %in% c(anio_ref,anio_ref-1), tipo_visitante == "Turistas") %>% 
   group_by (anio, mes, pais_agrupado) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   mutate (var = tasa_variacion(tur,periodo = 108), #9 paises *12 meses
           var = if_else(var == Inf, NA_real_, var))
@@ -393,7 +393,7 @@ filter (turismo_internac == "Receptivo", anio %in% c(anio_ref,anio_ref-1), tipo_
 
 c_1.2_pais_tot <- c_1.2_pais %>% 
   group_by (anio, pais_agrupado) %>% 
-  summarise (tur = round(sum(tur))) %>% 
+  summarise (tur = sum(tur)) %>% 
   ungroup()
 
 #prepandemia:
@@ -401,14 +401,14 @@ c_1.2_pais_tot <- c_1.2_pais %>%
 receptivo_2019 <- base_visitantes %>% 
   filter (turismo_internac == "Receptivo", tipo_visitante == "Turistas", (anio == 2019)) %>% 
   group_by (anio, mes) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   adorn_totals(fill = "Total", name = "2019")
 
 receptivo_anio_ref <- base_visitantes %>% 
   filter (turismo_internac == "Receptivo", tipo_visitante == "Turistas", (anio == anio_ref)) %>% 
   group_by (anio, mes) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   adorn_totals(fill = "Total", name = as.character(anio_ref))
 
@@ -431,13 +431,13 @@ c_1.2_pais_con_tot <- c_1.2_pais_tot %>%
 
 c_1.2 <- c_1.2_pais %>% 
   group_by (anio, mes) %>%
-   summarise (tur = round(sum(tur))) %>% 
+   summarise (tur = sum(tur)) %>% 
   ungroup() 
  
 #total anual
 c_1.2_anual <- c_1.2 %>% 
   group_by (anio) %>% 
-  summarise (tur = round(sum(tur))) %>% 
+  summarise (tur = sum(tur)) %>% 
   ungroup() %>% 
   mutate (mes = "Total")
 
@@ -507,7 +507,7 @@ Las variaciones respecto a 2019 tienen una caída  mayor a 90 % en todas las ví
 pais_via <- base_visitantes %>% 
 filter (turismo_internac == "Receptivo", anio %in% c(anio_ref,anio_ref-1), tipo_visitante == "Turistas") %>% 
   group_by (anio, via, pais_agrupado) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   mutate (var = tasa_variacion(tur,periodo = 3*9)) %>% #3 vias *9 paises 
   filter(anio == anio_ref) %>% 
@@ -521,7 +521,7 @@ filter (turismo_internac == "Receptivo", anio %in% c(anio_ref,anio_ref-1), tipo_
 pais_via_tot <- base_visitantes %>% 
   filter (turismo_internac == "Receptivo", anio %in% c(anio_ref,anio_ref-1), tipo_visitante == "Turistas") %>% 
   group_by (anio, via) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   mutate (var = tasa_variacion(tur,periodo = 3))  %>% 
   filter(anio == anio_ref) %>% 
@@ -557,7 +557,7 @@ pais_via_con_tot <- pais_via_tot %>%
 pais_2019 <- base_visitantes %>% 
   filter (turismo_internac == "Receptivo", tipo_visitante == "Turistas", (anio == 2019)) %>% 
   group_by (anio, pais_agrupado, via) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   pivot_wider ( names_from = via,
                values_from = tur) %>%
@@ -1129,7 +1129,7 @@ ti12
 
 serie_vis_e_actual <- emisivo %>% 
   group_by (anio, tipo_visitante) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup()
 
 #con serie historica:
@@ -1156,7 +1156,7 @@ var_prepandemia_e <- last(serie_vis_e$Turistas)/ serie_vis_e$Turistas[serie_vis_
 ```
 
 
-El total de  viajes de turistas residentes en `r as.character(anio_ref)` fue de `r format( last(serie_vis_e$Turistas), big.mark = ".",decimal.mark = ",")`, con `r ifelse(last(serie_vis_e$var_interanual_tur)>0,"un aumento ","una caída")` interanual de un `r format(round(100 * abs (last(serie_vis_e$var_interanual_tur)), 1),decimal.mark = ",",big.mark = ".")`%. En comparación con 2019, `r ifelse(var_prepandemia_e > 0, "aumentó", "cayó")` un `r format(round(100 * abs (var_prepandemia_e), 1),decimal.mark = ",",big.mark = ".")`%.
+El total de  viajes de turistas residentes en `r as.character(anio_ref)` fue de `r format( last(serie_vis_e$Turistas), big.mark = ".",decimal.mark = ",", digits =0)`, con `r ifelse(last(serie_vis_e$var_interanual_tur)>0,"un aumento ","una caída")` interanual de un `r format(round(100 * abs (last(serie_vis_e$var_interanual_tur)), 1),decimal.mark = ",",big.mark = ".")`%. En comparación con 2019, `r ifelse(var_prepandemia_e > 0, "aumentó", "cayó")` un `r format(round(100 * abs (var_prepandemia_e), 1),decimal.mark = ",",big.mark = ".")`%.
 
 ```{r ti13} 
 
@@ -1235,7 +1235,7 @@ ti14
 g_1.2 <- base_visitantes %>% 
   filter (turismo_internac == "Emisivo", tipo_visitante == "Turistas", (anio == anio_ref | anio == anio_ref-1)) %>% 
   group_by (anio, destino_agrup) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() 
   
 
@@ -1297,9 +1297,9 @@ El turismo emisivo hacia todos los países, a excepción de EE.UU. y Canadá, qu
 
 ```{r ti15, fig.cap= glue("Viajes de turistas residentes por país de destino principal por año. Total país. Años {anio_ref-1}-{anio_ref}.")}
 
-graf_1.2 <- ggplot(g_1.2, aes(x= destino_agrup, y = tur)) +   
+graf_1.2 <- ggplot(g_1.2, aes(x= destino_agrup, y = round(tur))) +   
 geom_col(aes(fill = as_factor(anio)), position = "dodge") +
-geom_label(aes(label = format(tur, big.mark = ".", decimal.mark = ","), group = anio), 
+geom_label(aes(label = format(tur, big.mark = ".", decimal.mark = ",", digits =0), group = anio), 
            label.size = 0.15,
            label.padding =  unit(0.05, "lines"),
            position = position_dodge(width = 0.9),
@@ -1333,7 +1333,7 @@ En los últimos meses del año crece sobre todo el turismo hacia países limítr
 c_1.2_pais <- base_visitantes %>% 
 filter (turismo_internac == "Emisivo", anio %in% c(anio_ref,anio_ref-1), tipo_visitante == "Turistas") %>% 
   group_by (anio, mes, destino_agrup) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   mutate (var = tasa_variacion(tur,periodo = 108), #9 paises *12 meses
           var = if_else(var == Inf, NA_real_, var))
@@ -1342,7 +1342,7 @@ filter (turismo_internac == "Emisivo", anio %in% c(anio_ref,anio_ref-1), tipo_vi
 
 c_1.2_pais_tot <- c_1.2_pais %>% 
   group_by (anio, destino_agrup) %>% 
-  summarise (tur = round(sum(tur))) %>% 
+  summarise (tur = sum(tur)) %>% 
   ungroup()
 
 #por anio y pais con tot (var)
@@ -1359,13 +1359,13 @@ c_1.2_pais_con_tot <- c_1.2_pais_tot %>%
   
 c_1.2 <- c_1.2_pais %>% 
   group_by (anio, mes) %>%
-   summarise (tur = round(sum(tur))) %>% 
+   summarise (tur = sum(tur)) %>% 
   ungroup() 
  
 #total anual
 c_1.2_anual <- c_1.2 %>% 
   group_by (anio) %>% 
-  summarise (tur = round(sum(tur))) %>% 
+  summarise (tur = sum(tur)) %>% 
   ungroup() %>% 
   mutate (mes = "Total")
 
@@ -1383,14 +1383,14 @@ c_1.2 <- c_1.2 %>%
 emisivo_2019 <- base_visitantes %>% 
   filter (turismo_internac == "Emisivo", tipo_visitante == "Turistas", (anio == 2019)) %>% 
   group_by (anio, mes) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   adorn_totals(fill = "Total", name = "2019")
 
 emisivo_anio_ref <- base_visitantes %>% 
   filter (turismo_internac == "Emisivo", tipo_visitante == "Turistas", (anio == anio_ref)) %>% 
   group_by (anio, mes) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   adorn_totals(fill = "Total", name = as.character(anio_ref))
 
@@ -1457,7 +1457,7 @@ ti17
 pais_via_e <- base_visitantes %>% 
 filter (turismo_internac == "Emisivo", anio %in% c(anio_ref,anio_ref-1), tipo_visitante == "Turistas") %>% 
   group_by (anio, via, destino_agrup) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   mutate (var = tasa_variacion(tur,periodo = 3*9)) %>% #3 vias *9 paises 
   filter(anio == anio_ref) %>% 
@@ -1471,7 +1471,7 @@ filter (turismo_internac == "Emisivo", anio %in% c(anio_ref,anio_ref-1), tipo_vi
 pais_via_tot_e <- base_visitantes %>% 
   filter (turismo_internac == "Emisivo", anio %in% c(anio_ref,anio_ref-1), tipo_visitante == "Turistas") %>% 
   group_by (anio, via) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   mutate (var = tasa_variacion(tur,periodo = 3))  %>% 
   filter(anio == anio_ref) %>% 
@@ -1507,7 +1507,7 @@ pais_via_con_tot_e <- pais_via_tot_e %>%
 pais_2019_e <- base_visitantes %>% 
   filter (turismo_internac == "Emisivo", tipo_visitante == "Turistas", (anio == 2019)) %>% 
   group_by (anio, destino_agrup, via) %>% 
-  summarise (tur = round(sum(casos_ponderados))) %>% 
+  summarise (tur = sum(casos_ponderados)) %>% 
   ungroup() %>% 
   pivot_wider ( names_from = via,
                values_from = tur) %>%
